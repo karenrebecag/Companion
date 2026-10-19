@@ -2,21 +2,21 @@
    regenera desde el inglés. */
 
 /* Onboarding y claves */
-"chat.key.empty" = "Pega tu clave de OpenAI para empezar.";
-"chat.key.malformed" = "Esto no tiene forma de clave de OpenAI. Empieza con sk- y no lleva espacios.";
+"chat.key.empty" = "Pega tu clave de Cerebras para empezar.";
+"chat.key.malformed" = "Esto no tiene forma de clave. Las claves no llevan espacios y miden más de 20 caracteres.";
 "chat.secret.denied" = "No pude guardar la clave en el llavero. Autoriza el acceso e inténtalo de nuevo.";
 "chat.secret.failed" = "No pude guardar la clave. Inténtalo de nuevo.";
 
 /* Errores */
 "chat.error.generic" = "Algo salió mal. Inténtalo de nuevo.";
 "chat.error.persistence" = "No pude guardar la conversación. Revisa el espacio en disco.";
-"chat.error.invalidKey" = "Esta clave no es válida. Revísala en platform.openai.com.";
-"chat.error.forbidden" = "Esta clave no tiene permiso. Revisa su acceso en platform.openai.com.";
+"chat.error.invalidKey" = "Esta clave no es válida. Revísala en tu cuenta de Cerebras.";
+"chat.error.forbidden" = "Esta clave no tiene permiso. Revisa su acceso en tu cuenta de Cerebras.";
 "chat.error.rateLimited" = "Demasiadas peticiones. Espera un momento e inténtalo de nuevo.";
 "chat.error.unreachable" = "No pude conectar. Revisa la red e inténtalo de nuevo.";
 "chat.error.httpStatus" = "El servidor respondió %d. Inténtalo de nuevo.";
 "chat.error.noProvider" = "No hay un proveedor de chat disponible.";
-"chat.error.imageUnsupported" = "Los modelos configurados no leen imágenes. Agrega una clave de OpenAI u OpenRouter para enviar esta.";
+"chat.error.imageUnsupported" = "Los modelos configurados no leen imágenes. Agrega una clave de Cerebras u OpenRouter para enviar esta.";
 "chat.error.empty" = "El modelo no contestó. Inténtalo de nuevo.";
 
 /* Encargos */
@@ -48,7 +48,7 @@
 "voice.fail.speechEngine" = "Me quedé sin voz. Inténtalo otra vez en un momento.";
 "voice.fail.speechDenied" = "Sin permiso de reconocimiento de voz. Revisa Ajustes del sistema.";
 "voice.fail.noProviders" = "Falta una clave para responderte.";
-"voice.fail.quotaExceeded" = "La cuenta de OpenAI no tiene créditos. Añade crédito e inténtalo de nuevo.";
+"voice.fail.quotaExceeded" = "La cuenta no tiene créditos. Añade crédito e inténtalo de nuevo.";
 "voice.fail.sessionDropped" = "La sesión de voz se cayó.";
 "voice.fail.networkUnavailable" = "No hay conexión a internet. Verifica tu red.";
 "voice.fail.accessibilityDenied" = "Sin permiso de Accesibilidad no pude escribir en el campo. Tus palabras fueron al chat.";
@@ -129,8 +129,6 @@
 "settings.app.attachments" = "Archivos adjuntos";
 "settings.keys.header" = "CLAVES";
 "settings.keys.blurb" = "Se guardan en el llavero de tu Mac. Pegar una nueva reemplaza la anterior.";
-"settings.keys.openai" = "OpenAI";
-"settings.keys.openai.placeholder" = "sk-…";
 "settings.keys.cerebras" = "Cerebras";
 "settings.keys.cerebras.placeholder" = "csk-…";
 "settings.keys.cerebras.privacy" = "Con Cerebras, lo que dices al mantener fn lo responde Cerebras.";
@@ -153,7 +151,6 @@
 "settings.app.textSize.bigger" = "Texto más grande";
 "settings.app.textSize.smaller" = "Texto más pequeño";
 "settings.voice.header" = "VOZ";
-"settings.voice.voice" = "Voz";
 "settings.voice.blurb" = "La voz nueva se oye desde tu próxima conversación.";
 "settings.voice.speed" = "Velocidad";
 "settings.voice.volume" = "Volumen";
@@ -166,8 +163,8 @@
 "settings.voice.preview.playing" = "Sonando…";
 "settings.voice.preview.listen" = "Escuchar muestra";
 "settings.voice.eleven.header" = "Voz de ElevenLabs";
-"settings.voice.eleven.blurb" = "Con la clave de ElevenLabs guardada, esta voz es la que habla; la de OpenAI queda de respaldo.";
-"settings.voice.eleven.nokey" = "Sin clave de ElevenLabs se usa la voz de OpenAI de arriba.";
+"settings.voice.eleven.blurb" = "Con la clave de ElevenLabs guardada, esta voz es la que habla; la voz del sistema queda de respaldo.";
+"settings.voice.eleven.nokey" = "Sin clave de ElevenLabs habla la voz del sistema.";
 "settings.voice.eleven.voice" = "Voz";
 "settings.voice.eleven.custom" = "Otra voz (voice id)";
 "settings.voice.eleven.custom.placeholder" = "voice id de ElevenLabs";
@@ -341,7 +338,6 @@
 "welcome.language.en" = "English";
 "welcome.keys.title" = "Tus claves";
 "welcome.keys.body" = "Companion no tiene servidor: usa tus propias claves y las guarda en el llavero de tu Mac.";
-"welcome.keys.required" = "obligatoria";
 "welcome.keys.recommended" = "recomendada";
 "welcome.keys.verify" = "Verificar";
 "welcome.keys.where" = "¿Dónde la consigo?";

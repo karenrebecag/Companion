@@ -7,7 +7,7 @@ import Foundation
 extension ChatViewModel {
     package func onAppear() {
         do {
-            let raw = try secrets.read(.openAI)
+            let raw = try secrets.read(.cerebras)
             let key = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !key.isEmpty {
                 startup = .premium

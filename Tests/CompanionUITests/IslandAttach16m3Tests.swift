@@ -189,7 +189,7 @@ private func capture(_ n: Int) -> AttachmentRef {
 }
 
 @MainActor func testRemovingFromTheChatUpdatesTheStack() async {
-    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                              store: MemoryConversationStore(), config: Config(),
                              attachments: MemoryAttachments())
     let names = (1 ... 3).map { _ in RegionCapture.fileName(id: UUID()) } + ["nota.pdf"]
@@ -243,7 +243,7 @@ private final class Recorder {
 }
 
 @MainActor private func chatWith(_ store: (any AttachmentStoring)?) -> ChatViewModel {
-    ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+    ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                   store: MemoryConversationStore(), config: Config(), attachments: store)
 }
 

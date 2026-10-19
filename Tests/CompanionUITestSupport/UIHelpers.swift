@@ -28,7 +28,7 @@ import Testing
     approvals: (any ApprovalsProvider)? = nil
 ) -> ChatViewModel {
     let vm = ChatViewModel(
-        chat: chat, secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: chat, secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: store, config: config, parentTools: parentTools, sensor: sensor,
         approvals: approvals)
     vm.onAppear()
@@ -46,8 +46,8 @@ import Testing
     return vm
 }
 
-@MainActor package func readOpenAI(_ secrets: TestSecretStore) -> String? {
-    do { return try secrets.read(.openAI) } catch {
+@MainActor package func readCerebras(_ secrets: TestSecretStore) -> String? {
+    do { return try secrets.read(.cerebras) } catch {
         expect(false, "secret read no debía tirar \(error)")
         return nil
     }
@@ -59,7 +59,7 @@ import Testing
 
 @MainActor package func chat() -> ChatViewModel {
     ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: Config())
 }
 

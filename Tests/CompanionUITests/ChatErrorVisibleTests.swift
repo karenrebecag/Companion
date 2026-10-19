@@ -77,7 +77,7 @@ import Testing
 
 @MainActor private func makeVM() -> ChatViewModel {
     ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default)
 }
 

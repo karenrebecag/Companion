@@ -40,7 +40,7 @@ private struct InteractionHarness {
 private func makeInteractionHarness(clock: RolloverClock) -> InteractionHarness {
     let vmChat = FakeChatProvider()
     let vm = ChatViewModel(
-        chat: vmChat, secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: vmChat, secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default,
         sensor: FakeContextSensor(TurnContext(source: .typed)),
         now: { clock.date })

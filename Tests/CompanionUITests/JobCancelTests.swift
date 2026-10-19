@@ -15,7 +15,7 @@ import Testing
 
 @MainActor private func running(_ submitter: WatchfulSubmitter) -> ChatViewModel {
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default,
         jobSubmitter: submitter)
     vm.onAppear()
@@ -87,7 +87,7 @@ import Testing
 
 @MainActor func testStoppingWithNoJobIsHarmless() async {
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default)
     vm.onAppear()
     let before = vm.messages.count

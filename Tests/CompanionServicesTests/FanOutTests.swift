@@ -98,7 +98,7 @@ final class RecordingWarmSynth: SpeechSynthesizer, @unchecked Sendable {
     let synth = RecordingWarmSynth()
     let chat = ScriptedChat()
     var keys: [SecretKey: String] = [:]
-    if let key { keys[.openAI] = key }
+    if let key { keys[.openRouter] = key }
     let secrets = ScriptedSecrets(keys)
     let thread = ScriptedThread()
     let provider = StaticConfigProvider(Config(ownerFirstName: "Karen", language: .en))

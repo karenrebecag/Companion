@@ -21,10 +21,10 @@ import Testing
 @MainActor func testCerebrasIsTheTypedChatDefaultWhenItsKeyExists() {
     let transport = ScriptedTransport()
     transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     let deltas = collectChat(makeChatClient(
-        keys: [.cerebras: "csk-test", .openAI: "sk-test"],
-        available: ["cerebras", "openai"],
+        keys: [.cerebras: "csk-test"],
+        available: ["cerebras", "cerebras"],
         transport: transport))
     expectEq(deltas, [.text("Hola")], "cerebras: contesta el chat escrito")
     expectEq(chatHosts(transport), ["api.cerebras.ai"],
@@ -64,7 +64,7 @@ import Testing
 @MainActor func testAnImageGoesToCerebrasQwenNeverToGptOss() {
     let transport = ScriptedTransport()
     transport.stub(.cerebrasVision, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     let img = AttachmentRef(name: "a.png", path: "/tmp/a.png", kind: .image)
     // The image sits in an earlier turn: it still rides the history window.
     let history = [
@@ -74,8 +74,8 @@ import Testing
     ]
     _ = collectChat(
         makeChatClient(
-            keys: [.cerebras: "csk-test", .openAI: "sk-test"],
-            available: ["cerebras", "openai"],
+            keys: [.cerebras: "csk-test"],
+            available: ["cerebras", "cerebras"],
             transport: transport),
         history: history)
     expectEq(chatHosts(transport), ["api.cerebras.ai"],

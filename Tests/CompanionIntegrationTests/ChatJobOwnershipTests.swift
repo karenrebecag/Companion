@@ -24,7 +24,7 @@ private let voiceJob = JobID("voz")
 
 @MainActor private func chatWithJobs(_ jobs: any JobSubmitter = WatchfulSubmitter()) -> ChatViewModel {
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default, jobSubmitter: jobs)
     vm.onAppear()
     return vm

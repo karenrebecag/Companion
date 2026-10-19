@@ -109,7 +109,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
         #expect(out.cards == ["holdHint", "failure"])
         #expect(out.interruption == "failure")
         #expect(out.voice == "live")
-        #expect(out.pipeline == "realtime")
+        #expect(out.pipeline == "classic")
         #expect(out.kind == "idle")
         #expect(out.phase == nil)
     }

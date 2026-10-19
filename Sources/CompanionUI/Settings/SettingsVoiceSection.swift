@@ -2,7 +2,7 @@ import CompanionCore
 import CompanionUIPro
 import SwiftUI
 
-/// Settings › Voz (Wave 16g): which voice, with a sample next to it.
+/// Settings › Voz (Wave 16g): the ElevenLabs voice, with a sample next to it.
 /// Speed, volume, turn detection, tone and echo cancellation stay in
 /// `VoiceProfile.settings` with their current values; Incredible shows none
 /// of them, and each was a knob only the builder understood.
@@ -11,26 +11,13 @@ struct SettingsVoiceSection: View {
     /// 15f-6: only to know whether the ElevenLabs key is saved.
     var secrets: (any SecretStore)? = nil
 
+    // HACK: VoiceID still names the voice the mouths receive, though none of
+    // them reads it. Remove it with TTSFetching.fetch(_:voice:) once a mouth
+    // needs a voice name; until then the preview passes the stored value.
     @State private var settings = VoiceProfile.settings
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
-            SettingsGroup {
-                SettingsRow(title: Localized.string("settings.voice.voice")) {
-                    HStack(spacing: Space.x2) {
-                        previewPill
-                        SettingsItem(
-                            title: "",
-                            value: settings.voice.displayName,
-                            options: VoiceID.allCases.map { ($0, $0.displayName) },
-                            id: "settings.voice.voice"
-                        ) { picked in
-                            update { $0.voice = picked }
-                        }
-                    }
-                }
-                .settingsAnchor("settings.voice.voice")
-            }
             if let error = preview?.errorText {
                 Text(error)
                     .font(.uiCaption)
@@ -41,26 +28,5 @@ struct SettingsVoiceSection: View {
                     .padding(Space.x4)
             }
         }
-    }
-
-    @ViewBuilder private var previewPill: some View {
-        if let preview {
-            SettingsPill(
-                title: preview.playing == settings.voice
-                    ? Localized.string("settings.voice.preview.playing")
-                    : Localized.string("settings.voice.preview.listen"),
-                symbol: "speaker.wave.2",
-                enabled: !preview.isBusy
-            ) {
-                preview.play(settings.voice)
-            }
-        }
-    }
-
-    private func update(_ mutate: (inout VoiceSettings) -> Void) {
-        var copy = settings
-        mutate(&copy)
-        settings = copy
-        VoiceProfile.settings = copy
     }
 }

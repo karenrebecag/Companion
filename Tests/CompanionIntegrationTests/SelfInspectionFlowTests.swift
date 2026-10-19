@@ -24,7 +24,7 @@ private func arguments(_ name: String) -> String {
 /// resolution by anyone would show up there.
 @MainActor private func chat(session: SessionModel) -> ChatViewModel {
     ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: Config(), session: session)
 }
 

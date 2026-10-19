@@ -289,7 +289,7 @@ private func makeBody(
     if !tools.isEmpty {
         var encoded: [Any] = []
         for spec in tools {
-            guard let data = spec.encodeChat(strict: provider.supportsStrictTools)
+            guard let data = spec.encodeChat(strict: false)
                 .data(using: .utf8) else { continue }
             do {
                 encoded.append(try JSONSerialization.jsonObject(with: data))

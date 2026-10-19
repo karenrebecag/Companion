@@ -12,11 +12,10 @@ import Observation
 @MainActor
 package final class KeysSettingsModel {
     package enum Provider: Sendable, Equatable, Hashable, CaseIterable {
-        case openAI, cerebras, elevenLabs, exa, typesafe
+        case cerebras, elevenLabs, exa, typesafe
 
         var secretKey: SecretKey {
             switch self {
-            case .openAI: .openAI
             case .cerebras: .cerebras
             case .elevenLabs: .elevenLabs
             case .exa: .exa
@@ -26,7 +25,6 @@ package final class KeysSettingsModel {
     }
 
     package var secrets: (any SecretStore)?
-    package var openAIField = ""
     package var cerebrasField = ""
     package var elevenLabsField = ""
     package var exaField = ""
@@ -36,7 +34,6 @@ package final class KeysSettingsModel {
     package private(set) var masked: [Provider: String] = [:]
     package var errorText: String?
 
-    package var openAISaved: Bool { masked[.openAI] != nil }
     package var cerebrasSaved: Bool { masked[.cerebras] != nil }
     package var elevenLabsSaved: Bool { masked[.elevenLabs] != nil }
     package var exaSaved: Bool { masked[.exa] != nil }
@@ -99,7 +96,6 @@ package final class KeysSettingsModel {
 
     private func field(_ provider: Provider) -> String {
         switch provider {
-        case .openAI: openAIField
         case .cerebras: cerebrasField
         case .elevenLabs: elevenLabsField
         case .exa: exaField
@@ -109,7 +105,6 @@ package final class KeysSettingsModel {
 
     private func setField(_ provider: Provider, _ value: String) {
         switch provider {
-        case .openAI: openAIField = value
         case .cerebras: cerebrasField = value
         case .elevenLabs: elevenLabsField = value
         case .exa: exaField = value

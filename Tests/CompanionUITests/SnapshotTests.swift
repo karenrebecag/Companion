@@ -272,7 +272,7 @@ private struct SnapMemory: MemoryBrowsing {
     // so a notice that fades on its own must have a clock that never fires.
     func steady() -> ChatViewModel {
         ChatViewModel(
-            chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+            chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
             store: MemoryConversationStore(), config: Config(),
             session: SessionModel(jobs: nil, approvals: nil, sleep: { _ in
                 try await Task.sleep(for: .seconds(3600))

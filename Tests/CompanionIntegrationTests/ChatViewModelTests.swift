@@ -64,14 +64,14 @@ import Testing
 }
 
 @MainActor func testChatCopy() async {
-    let invalid = "This key is not valid. Check it at platform.openai.com."
+    let invalid = "This key is not valid. Check it in your Cerebras account."
     let persist = "I could not save the conversation. Check your disk space."
     let net = "I could not connect. Check your network and try again."
-    expectEq(ChatCopy.emptyKey, "Paste your OpenAI key to get started.", "copy: vacío")
+    expectEq(ChatCopy.emptyKey, "Paste your Cerebras key to get started.", "copy: vacío")
     expectEq(ChatCopy.error(ChatError.unauthorized), invalid, "copy: 401")
     expectEq(ChatCopy.error(ChatError.invalidKey), invalid, "copy: invalidKey")
     expectEq(ChatCopy.error(ChatError.forbidden),
-             "This key has no permission. Check its access at platform.openai.com.",
+             "This key has no permission. Check its access in your Cerebras account.",
              "copy: 403")
     expectEq(ChatCopy.error(ChatError.rateLimited),
              "Too many requests. Wait a moment and try again.",
@@ -197,7 +197,7 @@ import Testing
     vm.onboardingKey = "sk-proj-badbadbadbadbad"
     await awaitMain { await vm.submitOnboarding() }
     expect(vm.needsOnboarding, "onboard fail: sigue")
-    expectEq(readOpenAI(secrets), nil, "onboard fail: no escribe")
+    expectEq(readCerebras(secrets), nil, "onboard fail: no escribe")
     expectEq(vm.errorText, ChatCopy.error(ChatError.unauthorized), "onboard fail: 401")
     expectEq(chat.verifyKeys, ["sk-proj-badbadbadbadbad"], "onboard fail: pingueó")
 }
@@ -209,11 +209,11 @@ import Testing
     vm.onboardingKey = "  sk-proj-livelivelivelive  \n"
     await awaitMain { await vm.submitOnboarding() }
     expect(!vm.needsOnboarding, "onboard ok: entra")
-    expectEq(readOpenAI(secrets), "sk-proj-livelivelivelive",
-             "onboard ok: escribe OPENAI")
+    expectEq(readCerebras(secrets), "sk-proj-livelivelivelive",
+             "onboard ok: escribe CEREBRAS")
     expect(vm.errorText == nil, "onboard ok: sin error")
     expectEq(vm.onboardingKey, "", "onboard ok: limpia")
-    expectEq(chat.verifyProviders, [.openAI], "onboard ok: ping OpenAI")
+    expectEq(chat.verifyProviders, [.cerebras], "onboard ok: ping Cerebras")
 }
 
 @MainActor func testEmptyPasteShowsCopy() async {
@@ -225,7 +225,7 @@ import Testing
     expectEq(vm.errorText, ChatCopy.emptyKey, "paste vacío: copy")
     expect(vm.needsOnboarding, "paste vacío: no entra")
     expectEq(chat.verifyKeys.count, 0, "paste vacío: no pinguea")
-    expectEq(readOpenAI(secrets), nil, "paste vacío: no escribe")
+    expectEq(readCerebras(secrets), nil, "paste vacío: no escribe")
 }
 
 @MainActor func testReopenLoadsLastConversation() async {
@@ -244,7 +244,7 @@ import Testing
     // Wave 15a: reopen is not idle rollover (that has its own suite) — pin
     // "now" to the record's own updatedAt so this fixture is never stale.
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: store, config: .default, now: { Date(timeIntervalSince1970: 1_700_000_000) })
     vm.onAppear()
     expect(!vm.needsOnboarding, "reopen: con clave no pide onboarding")
@@ -388,7 +388,7 @@ import Testing
     let chat = FakeChatProvider()
     let store = MemoryConversationStore()
     let vm = ChatViewModel(
-        chat: chat, secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: chat, secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: store, config: Config(chat: ChatSettings(historyWindow: 2)))
     vm.onAppear()
     let port: any ConversationPresenting = vm
@@ -449,7 +449,7 @@ import Testing
     let store = MemoryAttachments()
     let vm = ChatViewModel(
         chat: FakeChatProvider(replies: [.success([.text("ok")])]),
-        secrets: TestSecretStore([.openAI: "sk-test"]),
+        secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(),
         config: .default,
         attachments: store)
@@ -469,7 +469,9 @@ import Testing
 /// no puede ser una clave.
 @MainActor func testAKeyIsJudgedByShapeBeforeTheNetwork() {
     expect(APIKeyShape.looksPlausible("sk-proj-Ab3dEf6hIj9lMn2pQr5tUv8x"),
-           "forma: una clave de proyecto pasa")
+           "forma: una clave con prefijo pasa")
+    expect(APIKeyShape.looksPlausible("csk-Ab3dEf6hIj9lMn2pQr5tUv8x"),
+           "forma: una clave de Cerebras pasa")
     expect(APIKeyShape.looksPlausible("  sk-Ab3dEf6hIj9lMn2pQr5tUv8x  "),
            "forma: los espacios de los bordes son del portapapeles, no de la clave")
     expect(!APIKeyShape.looksPlausible(
@@ -479,8 +481,8 @@ import Testing
            "forma: una clave truncada a la mitad no llega")
     expect(!APIKeyShape.looksPlausible("sk-Ab3dEf6h Ij9lMn2pQr5tUv8x"),
            "forma: un espacio en medio delata un pegado partido")
-    expect(!APIKeyShape.looksPlausible("Ab3dEf6hIj9lMn2pQr5tUv8xYz1234"),
-           "forma: sin el prefijo no es de OpenAI")
+    expect(!APIKeyShape.looksPlausible("https://api.example.com/keys/Ab3dEf6hIj9lMn2pQr5"),
+           "forma: una URL con esquema no es clave")
 }
 
 /// El bug: cualquier cosa no vacia salia a la red y volvia 1-2 segundos
@@ -496,7 +498,7 @@ import Testing
 
     expect(chat.verifyKeys.isEmpty,
            "forma: un pegado imposible no gasta un viaje a la red")
-    expectEq(readOpenAI(secrets), nil, "forma: y no se guarda nada")
+    expectEq(readCerebras(secrets), nil, "forma: y no se guarda nada")
     expect(vm.needsOnboarding, "forma: sigue pidiendo la clave")
     expectEq(vm.errorText, ChatCopy.malformedKey,
              "forma: el aviso dice que lo pegado no tiene forma de clave")

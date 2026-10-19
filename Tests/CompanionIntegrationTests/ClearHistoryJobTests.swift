@@ -349,7 +349,7 @@ struct ClearHistoryJobTests {
         parentTools: (any ParentToolExecuting)? = nil, approvals: (any ApprovalsProvider)? = nil
     ) -> ChatViewModel {
         let vm = ChatViewModel(
-            chat: chat, secrets: TestSecretStore([.openAI: "sk-test"]),
+            chat: chat, secrets: TestSecretStore([.cerebras: "sk-test"]),
             store: store, config: .default, jobSubmitter: jobs, attachments: attachments,
             parentTools: parentTools, approvals: approvals)
         vm.onAppear()

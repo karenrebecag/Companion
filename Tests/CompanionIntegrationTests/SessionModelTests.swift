@@ -117,7 +117,7 @@ import CompanionTestKit
 /// «thinking» para la conversación siguiente.
 @MainActor func testSwitchingConversationClosesTheTypedTurn() async {
     let vm = ChatViewModel(
-        chat: HangingChat(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: HangingChat(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default)
     vm.onAppear()
     await pumpUntil("cambio: sin onboarding") { !vm.needsOnboarding }
@@ -220,7 +220,7 @@ private func request(_ id: String) -> ApprovalRequest {
 @MainActor func testChatDenialOfTheFirstActionStopsThroughTheSession() async {
     let submitter = WatchfulSubmitter()
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default, jobSubmitter: submitter)
     vm.onAppear()
     Task {

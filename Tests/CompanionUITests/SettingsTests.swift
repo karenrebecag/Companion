@@ -163,9 +163,9 @@ import Testing
 
 @MainActor func testPreviewPlaysChosenVoice() async {
     let sampler = RecordingSampler()
-    let preview = VoicePreview(sampler: sampler)
+    let preview = VoicePreview(mouth: sampler)
     preview.play(.cedar)
-    await pumpUntil("preview: termina") { preview.playing == nil }
+    await pumpUntil("preview: termina") { !preview.playing }
     expectEq(sampler.played.first?.voice, .cedar, "preview: usa la voz elegida")
     expectEq(sampler.played.first?.text, VoicePreview.sampleText,
              "preview: frase corta de muestra")
@@ -173,19 +173,19 @@ import Testing
 }
 
 @MainActor func testPreviewReportsFailure() async {
-    let preview = VoicePreview(sampler: FailingSampler())
+    let preview = VoicePreview(mouth: FailingSampler())
     preview.play(.marin)
-    await pumpUntil("preview: termina con error") { preview.playing == nil }
+    await pumpUntil("preview: termina con error") { !preview.playing }
     expectEq(preview.errorText, VoiceCopy.previewFailed,
              "preview: sin red lo dice en vez de callar")
 }
 
 @MainActor func testPreviewIgnoresDoubleTap() async {
     let sampler = RecordingSampler(delay: 0.05)
-    let preview = VoicePreview(sampler: sampler)
+    let preview = VoicePreview(mouth: sampler)
     preview.play(.alloy)
     preview.play(.alloy)
-    await pumpUntil("preview: termina") { preview.playing == nil }
+    await pumpUntil("preview: termina") { !preview.playing }
     expectEq(sampler.played.count, 1, "preview: no encima dos muestras")
 }
 

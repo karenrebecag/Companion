@@ -12,7 +12,7 @@ import Foundation
 /// `text`/`model_id`/`language_code`, format in the `output_format` query.
 /// `pcm_24000` is S16LE 16-bit mono per
 /// https://elevenlabs.io/docs/overview/capabilities/text-to-speech — the
-/// exact bytes `DataSpeechPlayback` already plays for OpenAI.
+/// exact bytes `DataSpeechPlayback` already plays.
 package struct ElevenLabsTTSClient: TTSFetching, Sendable {
     private static let host = "https://api.elevenlabs.io"
     private static let outputFormat = "pcm_24000"

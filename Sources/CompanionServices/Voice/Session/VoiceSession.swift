@@ -113,8 +113,7 @@ package actor VoiceSession: VoiceControlling {
     var timeline = TurnTimeline()
     /// Setter module-wide: VoiceSessionTimeline writes it on flush (DM0 split).
     package internal(set) var lastTimeline: TurnTimeline?
-    /// Wave 14a: product roles for this hold. Named here; the tube still
-    /// follows the OpenAI key until 14b. Setter is module-wide so the
+    /// Wave 14a: product roles for this hold. Setter is module-wide so the
     /// pumps extension can write it (private(set) is file-private).
     package internal(set) var lastStack: VoiceStack?
     /// The decision judge pinned for the turn being decided; the router and

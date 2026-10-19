@@ -189,7 +189,9 @@ package enum JudgeReplyParser {
 package enum ActionJudgeRoute {
     package static func provider(keys: Set<SecretKey>, ollamaModel: String?) -> ProviderDescriptor? {
         if keys.contains(.cerebras) { return .cerebras }
-        if keys.contains(.openAI) { return ProviderDescriptor.openAI.withModel(HoldBrainCatalog.openAIModel) }
+        // The cheap judge model on OpenRouter: the role the OpenAI mini held
+        // before OpenAI left the product.
+        if keys.contains(.openRouter) { return ProviderDescriptor.openRouter.withModel("openai/gpt-4o-mini") }
         guard let model = ollamaModel?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty else {
             return nil
         }

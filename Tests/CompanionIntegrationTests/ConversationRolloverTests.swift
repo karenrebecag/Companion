@@ -96,7 +96,7 @@ import CompanionTestKit
     clock: RolloverClock
 ) -> ChatViewModel {
     let vm = ChatViewModel(
-        chat: chat, secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: chat, secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: store, config: .default, now: { clock.date })
     vm.onAppear()
     return vm
@@ -217,7 +217,7 @@ import CompanionTestKit
         id: "stale", title: "Viejo", updatedAt: now.addingTimeInterval(-600),
         messages: [ConversationMessage(role: "user", text: "hola")]), "rollover12")
     let staleVM = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: staleStore, config: .default, now: { now })
     staleVM.onAppear()
     expect(staleVM.messages.isEmpty, "rollover12: 10 min de silencio arranca en limpio")
@@ -227,7 +227,7 @@ import CompanionTestKit
         id: "fresh", title: "Reciente", updatedAt: now.addingTimeInterval(-60),
         messages: [ConversationMessage(role: "user", text: "hola")]), "rollover12")
     let freshVM = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: freshStore, config: .default, now: { now })
     freshVM.onAppear()
     expectEq(freshVM.messages.map(\.text), ["hola"],
@@ -243,7 +243,7 @@ import CompanionTestKit
     saveOrFail(store, original, "rollover13")
 
     let firstLaunch = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: store, config: .default, now: { now })
     firstLaunch.onAppear()
     expect(firstLaunch.messages.isEmpty, "rollover13: primer arranque en limpio")
@@ -251,7 +251,7 @@ import CompanionTestKit
              "rollover13: el primer arranque no re-estampa el viejo")
 
     let secondLaunch = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: store, config: .default, now: { now.addingTimeInterval(60) })
     secondLaunch.onAppear()
     expect(secondLaunch.messages.isEmpty, "rollover13: segundo arranque también en limpio")

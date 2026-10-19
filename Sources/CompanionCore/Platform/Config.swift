@@ -1,6 +1,8 @@
 import Foundation
 
 package enum SecretKey: String, Sendable, Equatable {
+    /// Delete marker only: `KeychainSecretStore` removes a key saved before
+    /// OpenAI left the product. Nothing reads it.
     case openAI = "OPENAI_API_KEY"
     /// 15e-2: Groq is no longer a provider. The case survives only so
     /// `KeychainSecretStore` can find and delete a key saved before 15e —
@@ -18,7 +20,7 @@ package enum SecretKey: String, Sendable, Equatable {
     /// as the fallback when only its key exists.
     case exa = "EXA_API_KEY"
     /// Wave 15f-7a: the hold's mouth when a voice is chosen too; without it
-    /// the mouth stays OpenAI's.
+    /// the mouth is the system voice.
     case elevenLabs = "ELEVENLABS_API_KEY"
     /// Wave 16k: the key the app shows the companion-apps function. Not a
     /// provider key: it opens only Karen's own function.
@@ -79,30 +81,16 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         self.maxOutputTokens = maxOutputTokens
     }
 
-    /// Whether the provider takes `strict: true` on a function tool. Known
-    /// for OpenAI; the compatibles answer 400 to fields they do not know.
-    /// HACK: decided by id. Upgrade trigger: read the provider's 400 body
-    /// once and flip per provider instead of guessing.
-    package var supportsStrictTools: Bool { id == "openai" }
-
     /// Original concatenates `base + "/chat/completions"`; base has no
     /// trailing slash, so `absoluteString` matches that contract.
     package var endpoint: URL? {
         URL(string: baseURL.absoluteString + "/chat/completions")
     }
 
-    package static let openAI = ProviderDescriptor(
-        id: "openai",
-        name: "OpenAI",
-        baseURL: URL(string: "https://api.openai.com/v1")!,
-        model: "gpt-4o",
-        secretKey: .openAI
-    )
-
     /// Wave 15c-7: gpt-oss-120b, measured live at 0.27 s to a tool call with
     /// a 500k tokens/min limit (spec §11). Low reasoning effort is the hold's
     /// speed budget; the typed chat sends the same row, so it inherits it.
-    /// No `strict` (`supportsStrictTools` is OpenAI-only) and no temperature
+    /// No `strict` (no provider in the catalog takes it now) and no temperature
     /// (gpt-oss is in `ChatParameters.reasoningPrefixes`). Text only: see
     /// `ChatParameters.acceptsImages`.
     /// HACK: `maxTools` is the OpenAI default. The Cerebras docs we read
@@ -134,9 +122,6 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         temperature: nil,
         reasoningEffort: "none"
     )
-
-    /// Screen vision on the OpenAI key, the one that still reads images here.
-    package static let openAIVision = openAI.withModel("gpt-4o-mini")
 
     package static let openRouter = ProviderDescriptor(
         id: "openrouter",
@@ -195,11 +180,11 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
     }
 
     /// Cerebras first: with its key saved it is the default typed-chat
-    /// provider, and without one `route` skips it and OpenAI answers as before.
+    /// provider, and without one `route` skips it and the next key answers.
     /// The hold ladder drops it again (`HoldBrainCatalog.ladder`), since the
     /// fast brain already asked it.
     package static let catalog: [ProviderDescriptor] = [
-        cerebras, openAI, openRouter, ollama,
+        cerebras, openRouter, ollama,
     ]
 
     /// The ladder, in the user's order. Named ids go first in the order given;
@@ -441,7 +426,7 @@ package struct Config: Sendable, Equatable {
     package var judge: ActionJudgeSettings
     package var debugTranscripts: Bool
     /// Wave 15f-7a: the ElevenLabs voice the hold speaks with. Empty means
-    /// none chosen, and the mouth stays OpenAI's even with the key saved.
+    /// none chosen, and the mouth is the system voice even with the key saved.
     package var elevenLabsVoiceID: String
 
     package init(

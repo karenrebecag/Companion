@@ -18,7 +18,7 @@ import Testing
 ) async -> ChatViewModel {
     let handoff = Handoff(goal: "buscar la carpeta", context: "")
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default)
     vm.onAppear()
     await vm.runJob(
@@ -128,7 +128,7 @@ struct ReportSubmitter: JobSubmitter {
     // Ahora que la charla tambien pinta tarjetas, su propio JSON entraria al
     // historial por el camino ordinario, que no pasaba por ningun filtro.
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default)
     vm.onAppear()
     await vm.appendAssistant("""

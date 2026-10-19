@@ -2,21 +2,21 @@
    original and Spanish follows it in es.lproj. */
 
 /* Onboarding and keys */
-"chat.key.empty" = "Paste your OpenAI key to get started.";
-"chat.key.malformed" = "That does not look like an OpenAI key. It starts with sk- and has no spaces.";
+"chat.key.empty" = "Paste your Cerebras key to get started.";
+"chat.key.malformed" = "That does not look like a key. Keys have no spaces and are longer than 20 characters.";
 "chat.secret.denied" = "I could not save the key to the keychain. Allow access and try again.";
 "chat.secret.failed" = "I could not save the key. Try again.";
 
 /* Errors */
 "chat.error.generic" = "Something went wrong. Try again.";
 "chat.error.persistence" = "I could not save the conversation. Check your disk space.";
-"chat.error.invalidKey" = "This key is not valid. Check it at platform.openai.com.";
-"chat.error.forbidden" = "This key has no permission. Check its access at platform.openai.com.";
+"chat.error.invalidKey" = "This key is not valid. Check it in your Cerebras account.";
+"chat.error.forbidden" = "This key has no permission. Check its access in your Cerebras account.";
 "chat.error.rateLimited" = "Too many requests. Wait a moment and try again.";
 "chat.error.unreachable" = "I could not connect. Check your network and try again.";
 "chat.error.httpStatus" = "The server answered %d. Try again.";
 "chat.error.noProvider" = "No chat provider is available.";
-"chat.error.imageUnsupported" = "The configured models cannot read images. Add an OpenAI or OpenRouter key to send this one.";
+"chat.error.imageUnsupported" = "The configured models cannot read images. Add a Cerebras or OpenRouter key to send this one.";
 "chat.error.empty" = "The model did not answer. Try again.";
 
 /* Jobs */
@@ -48,7 +48,7 @@
 "voice.fail.speechEngine" = "I lost my voice. Try again in a moment.";
 "voice.fail.speechDenied" = "No speech recognition permission. Check System Settings.";
 "voice.fail.noProviders" = "A key is missing, so I can't answer.";
-"voice.fail.quotaExceeded" = "The OpenAI account has no credits left. Add credits and try again.";
+"voice.fail.quotaExceeded" = "The account has no credits left. Add credits and try again.";
 "voice.fail.sessionDropped" = "The voice session dropped.";
 "voice.fail.networkUnavailable" = "No internet connection. Check your network.";
 "voice.fail.accessibilityDenied" = "No Accessibility permission, so I could not type into the field. I sent your words to the chat instead.";
@@ -129,8 +129,6 @@
 "settings.app.attachments" = "Attachments";
 "settings.keys.header" = "KEYS";
 "settings.keys.blurb" = "They're kept in your Mac's keychain. Pasting a new one replaces the old one.";
-"settings.keys.openai" = "OpenAI";
-"settings.keys.openai.placeholder" = "sk-…";
 "settings.keys.cerebras" = "Cerebras";
 "settings.keys.cerebras.placeholder" = "csk-…";
 "settings.keys.cerebras.privacy" = "With Cerebras, what you say while holding fn is answered by Cerebras.";
@@ -153,7 +151,6 @@
 "settings.app.textSize.bigger" = "Bigger text";
 "settings.app.textSize.smaller" = "Smaller text";
 "settings.voice.header" = "VOICE";
-"settings.voice.voice" = "Voice";
 "settings.voice.blurb" = "A new voice is heard from your next conversation.";
 "settings.voice.speed" = "Speed";
 "settings.voice.volume" = "Volume";
@@ -166,8 +163,8 @@
 "settings.voice.preview.playing" = "Playing…";
 "settings.voice.preview.listen" = "Hear a sample";
 "settings.voice.eleven.header" = "ElevenLabs voice";
-"settings.voice.eleven.blurb" = "With the ElevenLabs key saved, this voice speaks; the OpenAI voice is the fallback.";
-"settings.voice.eleven.nokey" = "Without an ElevenLabs key, the OpenAI voice above is used.";
+"settings.voice.eleven.blurb" = "With the ElevenLabs key saved, this voice speaks; the system voice is the fallback.";
+"settings.voice.eleven.nokey" = "Without an ElevenLabs key, the system voice speaks.";
 "settings.voice.eleven.voice" = "Voice";
 "settings.voice.eleven.custom" = "Other voice (voice id)";
 "settings.voice.eleven.custom.placeholder" = "ElevenLabs voice id";
@@ -341,7 +338,6 @@
 "welcome.language.en" = "English";
 "welcome.keys.title" = "Your keys";
 "welcome.keys.body" = "Companion has no server: it uses your own keys and keeps them in your Mac's keychain.";
-"welcome.keys.required" = "required";
 "welcome.keys.recommended" = "recommended";
 "welcome.keys.verify" = "Verify";
 "welcome.keys.where" = "Where do I get one?";

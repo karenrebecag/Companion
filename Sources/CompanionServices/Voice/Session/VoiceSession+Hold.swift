@@ -89,8 +89,7 @@ extension VoiceSession {
             speculationsThisHold = 0
             lastSpeculatedText = nil
         }
-        let realtime = openAIKey() != nil
-        if !bounced { rememberStack(openAI: realtime) }
+        if !bounced { rememberStack() }
         // A bounce is the same hold: it keeps the field it already decided
         // on, instead of paying for a second Accessibility round trip and
         // announcing twice (code review 2026-09-06).
@@ -109,7 +108,7 @@ extension VoiceSession {
     /// The keys that can read a screen. Read per call: a key saved while the app
     /// runs counts from the next hold.
     func visionKeys() -> Set<SecretKey> {
-        Set([SecretKey.cerebras, .openAI].filter { hasSecret($0) })
+        Set([SecretKey.cerebras].filter { hasSecret($0) })
     }
 
     /// What leaves the machine for a hold: the screen for vision and the

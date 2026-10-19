@@ -36,7 +36,7 @@ private func reply(_ verdicts: String) -> Data {
 private let goodVerdicts = #"[{"id":"2","effect":"undoable","covered":false},{"id":"1","effect":"reaches_someone","covered":true}]"#
 
 @MainActor private func judge(
-    _ transport: ChatTransport, keys: [SecretKey: String] = [.openAI: "sk-test"],
+    _ transport: ChatTransport, keys: [SecretKey: String] = [.cerebras: "sk-test"],
     ollamaModel: String? = nil, timeout: TimeInterval = 4
 ) -> [JudgeOpinion?] {
     let client = ActionJudgeClient(

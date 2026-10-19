@@ -59,7 +59,7 @@ package final class TestConfigProvider: ConfigProviding, @unchecked Sendable {
     let synth = ScriptedSynth()
     let chat = ScriptedChat()
     var keys: [SecretKey: String] = [:]
-    keys[.openAI] = "sk-test"
+    keys[.openRouter] = "sk-test"
     let secrets = ScriptedSecrets(keys)
     let thread = ScriptedThread()
     let clock = TestClock()

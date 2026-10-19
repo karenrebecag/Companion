@@ -19,7 +19,7 @@ extension AppDelegate {
     func presentWindow(
         model: ChatViewModel, voice: VoiceViewModel, sessionModel: SessionModel,
         env: LaunchEnvironment,
-        openAIMouth: OpenAITTSClient, mouth: MouthRouter, voicePort: VoicePortBox,
+        mouth: MouthRouter, voicePort: VoicePortBox,
         appTools: AppToolRunner
     ) {
         // Wave 12h: FN is an Accessibility HID tap (same permission as
@@ -70,11 +70,9 @@ extension AppDelegate {
         }
         startHoldKeyIfAllowed()
 
-        // Preview uses the chat audio endpoint, never the realtime session.
-        // 15f-6: the ElevenLabs sample goes through the hold's own router,
-        // so what Settings plays is what the hold will say.
+        // 15f-6: the sample goes through the hold's own router, so what
+        // Settings plays is what the hold will say.
         let preview = VoicePreview(
-            sampler: TTSVoiceSampler(fetcher: openAIMouth, playback: DataSpeechPlayback()),
             mouth: TTSVoiceSampler(fetcher: mouth, playback: DataSpeechPlayback()))
         self.voicePreview = preview
 

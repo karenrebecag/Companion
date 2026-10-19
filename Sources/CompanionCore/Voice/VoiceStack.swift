@@ -53,7 +53,6 @@ package enum VoiceStackResolver: Sendable {
         localModel: String?,
         elevenLabsVoiceID: String = ""
     ) -> VoiceStack {
-        let openAI = secrets[.openAI] == true
         let cerebras = secrets[.cerebras] == true
         let openRouter = secrets[.openRouter] == true
         let local = (localModel ?? "")
@@ -70,9 +69,6 @@ package enum VoiceStackResolver: Sendable {
         if cerebras {
             brain = VoiceRole(
                 id: ProviderDescriptor.cerebras.model, provider: "cerebras")
-        } else if openAI {
-            // Mini is the hold brain; chat's default gpt-4o is a different lane.
-            brain = VoiceRole(id: HoldBrainCatalog.openAIModel, provider: "openai")
         } else if openRouter {
             brain = VoiceRole(
                 id: ProviderDescriptor.openRouter.model, provider: "openrouter")
@@ -92,8 +88,8 @@ package enum VoiceStackResolver: Sendable {
             mouth = nil
         }
 
-        let sight: VoiceRole? = openAI
-            ? VoiceRole(id: "gpt-4o-mini", provider: "openai")
+        let sight: VoiceRole? = cerebras
+            ? VoiceRole(id: ProviderDescriptor.cerebrasVision.model, provider: "cerebras")
             : nil
 
         return VoiceStack(ear: ear, brain: brain, mouth: mouth, sight: sight)
@@ -154,10 +150,6 @@ package struct ElevenLabsVoicePreset: Sendable, Equatable, Hashable {
 /// 15e-3: which providers the hold's two chat clients may ask. Pure so the
 /// composition root's wiring is testable without building the app.
 package enum HoldBrainCatalog {
-    /// The hold's brain on OpenAI: a tool call by commit costs less than
-    /// gpt-4o's, and it is what `VoiceStackResolver` names in the log.
-    package static let openAIModel = "gpt-4o-mini"
-
     /// One attempt each, no backoff: a 429 retried with sleeps was the
     /// 8-24 s turns measured live (15c-7).
     package static let fast: [ProviderDescriptor] = [.cerebras]
@@ -168,6 +160,5 @@ package enum HoldBrainCatalog {
         let fastIDs = Set(fast.map(\.id))
         return effective
             .filter { !fastIDs.contains($0.id) }
-            .map { $0.id == ProviderDescriptor.openAI.id ? $0.withModel(openAIModel) : $0 }
     }
 }

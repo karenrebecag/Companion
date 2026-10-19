@@ -219,8 +219,8 @@ package final class ChatViewModel: ConversationPresenting {
         errorText = nil
         defer { onboardingBusy = false }
         do {
-            try await chat.verify(key, provider: .openAI)
-            try secrets.write(.openAI, value: key)
+            try await chat.verify(key, provider: .cerebras)
+            try secrets.write(.cerebras, value: key)
             onboardingKey = ""
             startup = .premium
             needsOnboarding = false

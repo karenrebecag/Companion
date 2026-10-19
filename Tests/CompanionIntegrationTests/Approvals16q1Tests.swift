@@ -115,7 +115,7 @@ private final class IDRecordingSubmitter: JobSubmitter, @unchecked Sendable {
 
 @MainActor private func chat(_ jobs: any JobSubmitter) -> ChatViewModel {
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default, jobSubmitter: jobs)
     vm.onAppear()
     return vm

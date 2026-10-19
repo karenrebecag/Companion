@@ -66,7 +66,7 @@ import Testing
     let submitter = RecordingSubmitter()
     let vm = ChatViewModel(
         chat: FakeChatProvider(),
-        secrets: TestSecretStore([.openAI: "sk-test"]),
+        secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(),
         config: .default,
         jobSubmitter: submitter,
@@ -93,7 +93,7 @@ import Testing
         replies: [.success([.text("Voy. "), .handoff(handoff)])])
     let vm = ChatViewModel(
         chat: chat,
-        secrets: TestSecretStore([.openAI: "sk-test"]),
+        secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(),
         config: .default,
         jobSubmitter: RecordingSubmitter(),
@@ -111,7 +111,7 @@ import Testing
         replies: [.success([.text("Voy. "), .handoff(handoff)])])
     let failVM = ChatViewModel(
         chat: failChat,
-        secrets: TestSecretStore([.openAI: "sk-test"]),
+        secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(),
         config: .default,
         jobSubmitter: FailingSubmitter(),
@@ -131,7 +131,7 @@ import Testing
     let files = RecordingAttachments()
     let vm = ChatViewModel(
         chat: FakeChatProvider(),
-        secrets: TestSecretStore([.openAI: "sk-test"]),
+        secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(),
         config: .default,
         notices: notices,

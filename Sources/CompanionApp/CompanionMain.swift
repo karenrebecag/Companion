@@ -106,7 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         presentWindow(
             model: sensing.model, voice: pipeline.voice, sessionModel: sensing.sessionModel,
             env: env,
-            openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, voicePort: sensing.voicePort,
+            mouth: pipeline.mouth, voicePort: sensing.voicePort,
             appTools: sensing.appTools)
     }
 

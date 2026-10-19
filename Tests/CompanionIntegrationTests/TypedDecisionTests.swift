@@ -44,7 +44,7 @@ import Testing
     config.language = .es
     let chat = FakeChatProvider(replies: replies)
     let vm = ChatViewModel(
-        chat: chat, secrets: TestSecretStore([.openAI: "sk-test"]), store: MemoryConversationStore(),
+        chat: chat, secrets: TestSecretStore([.cerebras: "sk-test"]), store: MemoryConversationStore(),
         config: config, jobSubmitter: jobs)
     vm.onAppear()
     vm.decider = TextTurnDecider(gate: gate, judge: judge, config: StaticConfigProvider(config))

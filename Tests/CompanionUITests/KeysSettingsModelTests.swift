@@ -38,7 +38,7 @@ import Testing
     expectEq(model.elevenLabsField, "", "elevenlabs: el campo no conserva la clave")
     expect(model.elevenLabsSaved, "elevenlabs: marcada como guardada")
     expectEq(model.masked[.elevenLabs], "sk_0••••QWER", "elevenlabs: solo la máscara")
-    expect(!model.openAISaved && !model.cerebrasSaved, "elevenlabs: no toca las otras")
+    expect(!model.cerebrasSaved, "elevenlabs: no toca cerebras")
     model.delete(.elevenLabs)
     expectEq(try? store.read(.elevenLabs), nil, "elevenlabs: borrar la quita")
     expect(!model.elevenLabsSaved, "elevenlabs: deja de estar guardada")
@@ -65,12 +65,12 @@ import Testing
     for (language, wording) in [(AppLanguage.en, "Could not delete the key."),
                                 (.es, "No se pudo borrar la clave.")] {
         await Localized.scoped(to: language) {
-            let store = RefusingDeleteStore([.openAI: "sk-proj-0123456789abcdWXYZ"])
+            let store = RefusingDeleteStore([.cerebras: "sk-proj-0123456789abcdWXYZ"])
             let model = KeysSettingsModel(secrets: store)
             model.refresh()
-            model.delete(.openAI)
+            model.delete(.cerebras)
             expectEq(model.errorText, wording, "L2: el error se dice (\(language))")
-            expectEq(model.masked[.openAI], "sk-p••••WXYZ", "L2: la fila sigue (\(language))")
+            expectEq(model.masked[.cerebras], "sk-p••••WXYZ", "L2: la fila sigue (\(language))")
         }
     }
 }
@@ -88,7 +88,7 @@ private final class RefusingDeleteStore: SecretStore, @unchecked Sendable {
 /// from before 15e never surfaces as a saved row.
 @MainActor func testThereIsNoGroqRowAndAStoredGroqKeyStaysHidden() {
     expectEq(KeysSettingsModel.Provider.allCases.map(\.secretKey),
-             [.openAI, .cerebras, .elevenLabs, .exa, .typesafe],
+             [.cerebras, .elevenLabs, .exa, .typesafe],
              "ajustes: OpenAI, Cerebras, ElevenLabs, Exa y TypeSafe")
     let store = TestSecretStore([.groq: "gsk_leftover0000000000"])
     let model = KeysSettingsModel(secrets: store)
@@ -118,13 +118,13 @@ private final class RefusingDeleteStore: SecretStore, @unchecked Sendable {
 }
 
 @MainActor func testRefreshMasksTheStoredKey() {
-    let store = TestSecretStore([.openAI: "sk-proj-0123456789abcdWXYZ"])
+    let store = TestSecretStore([.cerebras: "sk-proj-0123456789abcdWXYZ"])
     let model = KeysSettingsModel(secrets: store)
-    expect(model.masked[.openAI] == nil, "refresh: nada antes de aparecer")
+    expect(model.masked[.cerebras] == nil, "refresh: nada antes de aparecer")
     model.refresh()
-    expectEq(model.masked[.openAI], "sk-p••••WXYZ", "refresh: máscara de la guardada")
-    model.delete(.openAI)
-    expect(model.masked[.openAI] == nil, "borrar: la máscara se va")
+    expectEq(model.masked[.cerebras], "sk-p••••WXYZ", "refresh: máscara de la guardada")
+    model.delete(.cerebras)
+    expect(model.masked[.cerebras] == nil, "borrar: la máscara se va")
 }
 
 @MainActor func testCerebrasRowSavesItsOwnKey() {
@@ -134,25 +134,25 @@ private final class RefusingDeleteStore: SecretStore, @unchecked Sendable {
     model.save(.cerebras)
     expectEq(try? store.read(.cerebras), "csk-0123456789abcdefwrjz", "cerebras: se guarda")
     expect(model.cerebrasSaved, "cerebras: marcada como guardada")
-    expect(!model.openAISaved, "cerebras: no toca OpenAI")
+    expect(!model.elevenLabsSaved, "cerebras: no toca ElevenLabs")
 }
 
 @MainActor func testRefreshOnlyOnDemandNeverAtInit() {
-    let store = TestSecretStore([.openAI: "sk-existing-key-000000"])
+    let store = TestSecretStore([.cerebras: "sk-existing-key-000000"])
     let model = KeysSettingsModel(secrets: store)
-    expect(!model.openAISaved, "claves: no lee el Keychain al construirse")
+    expect(!model.cerebrasSaved, "claves: no lee el Keychain al construirse")
     model.refresh()
-    expect(model.openAISaved, "claves: refresh sí lee la presencia")
+    expect(model.cerebrasSaved, "claves: refresh sí lee la presencia")
 }
 
 @MainActor func testSaveTrimsWritesAndClearsTheField() {
     let store = TestSecretStore()
     let model = KeysSettingsModel(secrets: store)
-    model.openAIField = "  sk-abcdefghijklmnopqrst  "
-    model.save(.openAI)
-    expectEq(try? store.read(.openAI), "sk-abcdefghijklmnopqrst", "claves: guarda recortada")
-    expectEq(model.openAIField, "", "claves: el campo se limpia — nunca guarda el valor")
-    expect(model.openAISaved, "claves: queda marcada como guardada")
+    model.cerebrasField = "  sk-abcdefghijklmnopqrst  "
+    model.save(.cerebras)
+    expectEq(try? store.read(.cerebras), "sk-abcdefghijklmnopqrst", "claves: guarda recortada")
+    expectEq(model.cerebrasField, "", "claves: el campo se limpia — nunca guarda el valor")
+    expect(model.cerebrasSaved, "claves: queda marcada como guardada")
     expect(model.errorText == nil, "claves: sin error")
 }
 
@@ -179,9 +179,9 @@ private final class RefusingDeleteStore: SecretStore, @unchecked Sendable {
 @MainActor func testProvidersAreIndependent() {
     let store = TestSecretStore()
     let model = KeysSettingsModel(secrets: store)
-    model.openAIField = "sk-onlyopenaikeyvalue"
-    model.save(.openAI)
-    expect(model.openAISaved && !model.cerebrasSaved, "claves: guardar una no toca la otra")
+    model.cerebrasField = "sk-onlyopenaikeyvalue"
+    model.save(.cerebras)
+    expect(model.cerebrasSaved && !model.elevenLabsSaved, "claves: guardar una no toca la otra")
 }
 
 /// Settings can render before a `ChatViewModel` exists (`chat` is
@@ -189,8 +189,8 @@ private final class RefusingDeleteStore: SecretStore, @unchecked Sendable {
 @MainActor func testWithoutASecretStoreNothingCrashes() {
     let model = KeysSettingsModel()
     model.refresh()
-    expect(!model.openAISaved && !model.cerebrasSaved, "claves: sin secretStore, nada guardado")
-    model.openAIField = "sk-anything-at-all-0000"
-    model.save(.openAI)
-    expect(!model.openAISaved, "claves: sin secretStore, save no truena y no guarda")
+    expect(!model.cerebrasSaved && !model.cerebrasSaved, "claves: sin secretStore, nada guardado")
+    model.cerebrasField = "sk-anything-at-all-0000"
+    model.save(.cerebras)
+    expect(!model.cerebrasSaved, "claves: sin secretStore, save no truena y no guarda")
 }

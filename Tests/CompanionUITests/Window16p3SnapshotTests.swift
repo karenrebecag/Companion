@@ -34,7 +34,7 @@ import Testing
         for scheme in [ColorScheme.light, .dark] {
             let tag = scheme == .light ? "light" : "dark"
             let chat = ChatViewModel(
-                chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+                chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                 store: MemoryConversationStore(), config: Config())
             try renderHosted(HomePage(chat: chat, voice: VoiceViewModel(voice: RecordingVoice(), thread: FakePresenter()), onOpen: { _ in }, onSettings: { _ in }),
                              scheme: scheme, size: CGSize(width: 1000, height: 700), to: out, "window-home-\(tag)")

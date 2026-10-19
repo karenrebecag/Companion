@@ -22,7 +22,6 @@ struct SettingsInventoryKeysTests {
         "settings.muteWhileTalking.subtitle",
         "settings.screenGlow",
         "settings.screenGlow.subtitle",
-        "settings.voice.voice",
         "settings.voice.blurb",
         "settings.vocabulary",
         "settings.vocabulary.subtitle",

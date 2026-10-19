@@ -9,16 +9,8 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 1e-9 }
 
 @Test func conversationSpeedStartsAtBaseFactorOne() {
     #expect(ConversationSpeed.base.factor == 1.0)
-    #expect(near(ConversationSpeed.base.speed(for: .openAITTS, base: 1.1), 1.1))
-    #expect(!ConversationSpeed.base.isLimited(for: .openAITTS, base: 1.1))
-}
-
-@Test func openAITTSClampsTo025Through40() {
-    #expect(near(ConversationSpeed(factor: 1.3).speed(for: .openAITTS, base: 1.1), 1.43))
-    #expect(near(ConversationSpeed(factor: 4.0).speed(for: .openAITTS, base: 1.1), 4.0))
-    #expect(ConversationSpeed(factor: 4.0).isLimited(for: .openAITTS, base: 1.1))
-    #expect(near(ConversationSpeed(factor: 0.25).speed(for: .openAITTS, base: 0.5), 0.25))
-    #expect(ConversationSpeed(factor: 0.25).isLimited(for: .openAITTS, base: 0.5))
+    #expect(near(ConversationSpeed.base.speed(for: .elevenLabs, base: 1.1), 1.1))
+    #expect(!ConversationSpeed.base.isLimited(for: .elevenLabs, base: 1.1))
 }
 
 @Test func elevenLabsClampsTo07Through12() {
@@ -154,14 +146,6 @@ func setSpeechSpeedEncodesStrictForChat(language: AppLanguage) throws {
         let limited: Bool
     }
     let rows: [Row] = [
-        // OpenAI TTS.
-        Row(provider: .openAITTS, base: 1.0, factor: 4.0, speed: 4.0, limited: false),
-        Row(provider: .openAITTS, base: 1.0, factor: 3.95, speed: 3.95, limited: false),
-        Row(provider: .openAITTS, base: 1.1, factor: 4.0, speed: 4.0, limited: true),
-        Row(provider: .openAITTS, base: 1.1, factor: 3.65, speed: 4.0, limited: true),
-        Row(provider: .openAITTS, base: 1.0, factor: 0.25, speed: 0.25, limited: false),
-        Row(provider: .openAITTS, base: 0.5, factor: 0.5, speed: 0.25, limited: false),
-        Row(provider: .openAITTS, base: 0.5, factor: 0.45, speed: 0.25, limited: true),
         // ElevenLabs.
         Row(provider: .elevenLabs, base: 1.0, factor: 1.2, speed: 1.2, limited: false),
         Row(provider: .elevenLabs, base: 1.0, factor: 1.15, speed: 1.15, limited: false),
