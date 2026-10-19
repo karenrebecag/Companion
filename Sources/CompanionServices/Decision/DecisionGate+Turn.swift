@@ -14,11 +14,13 @@ extension DecisionGate {
     /// An open question answers from these words before any plan sees
     /// them: a "sí" must never be reclassified as a fresh order. A plan
     /// prepared for the same words is dropped when the question takes them.
+    /// `typed` reads the answer as a whole typed message, not a spoken one.
     package func route(
         _ utterance: String, canDelegate: Bool, budget: Duration?,
-        provider: (any DecisionProvider)?, prepared: Task<DecisionStep, Never>? = nil
+        provider: (any DecisionProvider)?, prepared: Task<DecisionStep, Never>? = nil,
+        typed: Bool = false
     ) async -> TurnRoute {
-        if let answered = await answerConfirmation(utterance) {
+        if let answered = await answerConfirmation(utterance, typed: typed) {
             prepared?.cancel()
             return .answered(answered)
         }
@@ -31,9 +33,9 @@ extension DecisionGate {
     /// open question is answered on the Mac and never goes out to be judged
     /// a second time, even when the route clears the question right after.
     package func delegationVerdict(
-        _ utterance: String, judge: DecisionJudge
+        _ utterance: String, judge: DecisionJudge, typed: Bool = false
     ) -> Task<DecisionAnswer?, Never>? {
-        guard !answersPendingConfirmation(utterance) else { return nil }
+        guard !answersPendingConfirmation(utterance, typed: typed) else { return nil }
         return Task { await judge.delegationVerdict(utterance) }
     }
 

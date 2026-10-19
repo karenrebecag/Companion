@@ -17,6 +17,9 @@ import Testing
     await testATypedBackgroundRequestKeepsDelegate()
     await testASureSelfHandledVerdictWithdrawsDelegateFromTheBrain()
     await testWithoutTheKeyNothingTypedReachesTypeSafe()
+    await testTypedProseThatOpensWithAYesIsNotAnAnswer()
+    await testASkippedTurnOrAClearedThreadDropsTheOpenQuestion()
+    await testALongOrMultiLineMessageNeverReachesTheHostedJudge()
 }
 
 @MainActor private func typedChat(
@@ -108,4 +111,54 @@ private func selfHandled() -> ScriptedHosted {
     await type("abre Safari", into: vm)
     expectEq(hosted.calls, 0, "typed no key: TypeSafe is never asked")
     expectEq(chat.histories.count, 1, "typed no key: the brain answers, as before")
+}
+
+/// Security review of #360 (H1): a typed sentence that happens to open with
+/// "si" or "yes" is prose, not the answer to an open question.
+@MainActor func testTypedProseThatOpensWithAYesIsNotAnAnswer() async {
+    let script = trashProvider()
+    let system = RecordingSystemActing()
+    let (vm, _) = typedChat(hosted: ScriptedHosted(configured: true) { script.body($0) }, system: system)
+    for prose in ["si puedes, abre Safari", "yes please also tell me the weather"] {
+        await type("vacia la papelera", into: vm)
+        await type(prose, into: vm)
+        expectEq(system.actCount, 0, "typed prose: \(prose) empties nothing")
+    }
+    await type("vacia la papelera", into: vm)
+    await type("sí, dale", into: vm)
+    expectEq(system.actCount, 1, "typed prose: a short yes still answers")
+}
+
+/// Security review of #360 (M1): the open question belongs to the turn that
+/// asked it. A card pick in between, or a new thread, drops it.
+@MainActor func testASkippedTurnOrAClearedThreadDropsTheOpenQuestion() async {
+    let script = trashProvider()
+    let system = RecordingSystemActing()
+    let (vm, _) = typedChat(
+        hosted: ScriptedHosted(configured: true) { script.body($0) }, system: system,
+        replies: [.success([.text("ok")])])
+    await type("vacia la papelera", into: vm)
+    vm.startTurn("la segunda", origin: .choice)
+    await pumpUntil("skipped: card turn done") { !vm.busy }
+    await type("si", into: vm)
+    expectEq(system.actCount, 0, "skipped: a yes after a card pick answers nothing")
+    await type("vacia la papelera", into: vm)
+    vm.newConversation()
+    await type("si", into: vm)
+    expectEq(system.actCount, 0, "skipped: a yes in a new thread answers nothing")
+}
+
+/// Karen, 2026-10-19: pasted code, an email or a long paragraph is never a
+/// short command; with the key saved it still goes to the brain alone.
+@MainActor func testALongOrMultiLineMessageNeverReachesTheHostedJudge() async {
+    let hosted = ScriptedHosted(configured: true) { _ in nil }
+    let long = String(repeating: "abre Safari y luego ", count: 12)
+    let (vm, chat) = typedChat(
+        hosted: hosted, replies: [.success([.text("ok")]), .success([.text("ok")])],
+        jobs: CapturingSubmitter())
+    await type("abre Safari\ny luego Slack", into: vm)
+    await type(long, into: vm)
+    expectEq(hosted.calls, 0, "typed long: the hosted judge is never asked")
+    expectEq(chat.histories.count, 2, "typed long: the brain answers both")
+    expect(chat.toolsSeen.contains { $0.name == "delegate" }, "typed long: delegate stays offered")
 }

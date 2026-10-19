@@ -65,6 +65,10 @@ package actor DecisionGate {
     /// the ledger says not to run `system.act` again, not what to say
     /// instead.
     private var confirmedOutcome: DecisionOutcome?
+    /// The words the last yes/no answered, and when. The delegation head is
+    /// started beside the router, so it can reach the gate after the answer
+    /// already cleared the question; these words are refused all the same.
+    private var answered: (words: String, at: Date)?
     private static let confirmationTTL: TimeInterval = 60
 
     package init(
@@ -164,26 +168,44 @@ package actor DecisionGate {
     /// one that was just heard.
     /// True when `utterance` is a yes/no to a question still open: that
     /// turn is answered locally and nothing about it needs to be judged.
-    package func answersPendingConfirmation(_ utterance: String) -> Bool {
+    package func answersPendingConfirmation(_ utterance: String, typed: Bool = false) -> Bool {
+        if let answered, answered.words == utterance,
+           now().timeIntervalSince(answered.at) < Self.answeredWindow {
+            return true
+        }
         guard let pending, now().timeIntervalSince(pending.createdAt) < Self.confirmationTTL
         else { return false }
-        return SpokenConfirmation.reading(utterance) != nil
+        return Self.reading(utterance, typed: typed) != nil
     }
 
-    package func answerConfirmation(_ utterance: String) async -> DecisionOutcome? {
+    /// The open question is dropped unanswered: the thread it was asked in
+    /// moved on, so no later "sí" may answer it.
+    package func dropPendingConfirmation() {
+        clearPending()
+    }
+
+    /// Long enough for a head started with the same words to reach the gate.
+    private static let answeredWindow: TimeInterval = 10
+
+    private static func reading(_ utterance: String, typed: Bool) -> Bool? {
+        typed ? SpokenConfirmation.readingTyped(utterance) : SpokenConfirmation.reading(utterance)
+    }
+
+    package func answerConfirmation(_ utterance: String, typed: Bool = false) async -> DecisionOutcome? {
         guard let confirmation = pending else { return nil }
         guard now().timeIntervalSince(confirmation.createdAt) < Self.confirmationTTL else {
             Log.chat("decision: confirmation expired")
             clearPending()
             return nil
         }
-        guard let said = SpokenConfirmation.reading(utterance) else {
+        guard let said = Self.reading(utterance, typed: typed) else {
             // Unclear, or a fresh order (§8 "unrelated turn"): never guessed
             // — the question is gone and `utterance` falls through unchanged.
             Log.chat("decision: confirmation superseded")
             clearPending()
             return nil
         }
+        answered = (utterance, now())
         guard said else {
             Log.chat("decision: confirmation declined")
             clearPending()

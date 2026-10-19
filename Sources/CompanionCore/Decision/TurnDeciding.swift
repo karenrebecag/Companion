@@ -22,7 +22,21 @@ package struct TypedDecision: Sendable, Equatable {
     }
 }
 
+/// What typed text the router may judge at all. Pasted code, an email or a
+/// long paragraph is never a short command, and judging it would send all of
+/// it to the hosted judge (Karen, 2026-10-19: no setting, a shape rule). Two
+/// hundred characters holds any order the router can carry out.
+package enum TypedCommand {
+    package static let maxLength = 200
+
+    package static func mayBeJudged(_ text: String) -> Bool {
+        text.count <= maxLength && !text.contains(where: \.isNewline)
+    }
+}
+
 /// The typed chat's door to the same router the voice hold goes through.
 package protocol TurnDeciding: Sendable {
     func decide(_ utterance: String, canDelegate: Bool) async -> TypedDecision
+    /// Drops the question still waiting for a yes/no, unanswered.
+    func dropOpenQuestion() async
 }

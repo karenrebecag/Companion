@@ -9,10 +9,21 @@ extension ChatViewModel {
     /// True when the router answered the turn and the turn is over.
     func answeredByRouter(_ text: String, conversationId id: String) async -> Bool {
         guard let decider else { return false }
+        if openQuestionStale {
+            openQuestionStale = false
+            await decider.dropOpenQuestion()
+        }
         let decided = await decider.decide(text, canDelegate: jobSubmitter != nil)
-        // A switch or a clear took the turn meanwhile: nothing is shown in
-        // a thread that is gone, and the brain is not asked either.
-        guard conversationId == id, !Task.isCancelled else { return true }
+        // Something already moved: a cut turn must not carry these words into
+        // the next one and act on them twice.
+        if case .acted = decided.outcome { turnToolsRan = true }
+        // A switch or a clear took the turn meanwhile: nothing is shown in a
+        // thread that is gone, the brain is not asked, and a question asked
+        // there is never left open for a later yes.
+        guard conversationId == id, !Task.isCancelled else {
+            if case .confirm = decided.outcome { await decider.dropOpenQuestion() }
+            return true
+        }
         let language = config.language
         switch decided.outcome {
         case .passThrough:

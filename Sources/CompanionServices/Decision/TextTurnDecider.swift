@@ -20,10 +20,20 @@ package struct TextTurnDecider: TurnDeciding {
         self.config = config
     }
 
+    package func dropOpenQuestion() async {
+        await gate.dropPendingConfirmation()
+    }
+
     package func decide(_ utterance: String, canDelegate: Bool) async -> TypedDecision {
+        // Neither the router nor the head sees it; it cannot answer an open
+        // question either, so that question is gone, as any non-answer.
+        guard TypedCommand.mayBeJudged(utterance) else {
+            await gate.dropPendingConfirmation()
+            return TypedDecision(outcome: .passThrough(.notACommand), withdrawsDelegate: false)
+        }
         let turn = judge.pinned()
         let current = config.current
-        let verdict = canDelegate ? await gate.delegationVerdict(utterance, judge: turn) : nil
+        let verdict = canDelegate ? await gate.delegationVerdict(utterance, judge: turn, typed: true) : nil
         defer { verdict?.cancel() }
         let hosted = turn.usesHostedJudge
         let outcome: DecisionOutcome
@@ -33,7 +43,7 @@ package struct TextTurnDecider: TurnDeciding {
         } else {
             switch await gate.route(
                 utterance, canDelegate: canDelegate,
-                budget: hosted ? current.decision.hostedBudget : nil, provider: turn) {
+                budget: hosted ? current.decision.hostedBudget : nil, provider: turn, typed: true) {
             case .answered(let answered):
                 outcome = answered
             case .planned(let step):

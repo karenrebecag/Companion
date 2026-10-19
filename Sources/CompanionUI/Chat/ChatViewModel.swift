@@ -140,6 +140,9 @@ package final class ChatViewModel: ConversationPresenting {
     package var decider: (any TurnDeciding)?
     /// The delegation head took `delegate` off this turn's tools.
     var delegateWithdrawn = false
+    /// A turn the router skipped, or a thread change, came after the open
+    /// question: the next routed turn drops it before reading any yes.
+    var openQuestionStale = false
     /// Puente QA D4: told when a turn finishes or an owner check opens, so a
     /// waiting agent wakes without polling.
     package var onTurnEvent: (@MainActor (String, TurnSignal) -> Void)?
