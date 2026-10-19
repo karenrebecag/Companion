@@ -24,12 +24,12 @@ import Testing
 
 @MainActor func testASecureFieldNeverReadsItsCaption() {
     var asked = false
-    let label = AXScreen.label(
+    let label = ScreenRoles.label(
         title: "", description: "", placeholder: "", role: "AXTextField", secure: true,
         caption: { asked = true; return "hunter2" })
     expect(!asked, "C1: un campo seguro nunca lee a sus hijos")
     expectEq(label, "", "C1: sin subtítulo")
-    let button = AXScreen.label(
+    let button = ScreenRoles.label(
         title: "", description: "", placeholder: "", role: "AXButton", secure: false,
         caption: { "Enviar" })
     expectEq(button, "Enviar", "C1: un botón sí toma su subtítulo")
