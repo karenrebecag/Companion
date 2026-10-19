@@ -384,6 +384,16 @@ final class ClassicRuntime: @unchecked Sendable {
         }
         var context = await senseVoice(config, utterance: heard)
         context?.interrupted = interrupted
+        let offersDelegate: Bool
+        if onDelegate != nil {
+            let judged = await DecisionJudge.verdict(verdict, within: delegationWait)
+            offersDelegate = DelegationHead.offersDelegate(utterance: heard, judged)
+            if !offersDelegate {
+                Log.chat("decision: delegate withdrawn verdict=\(judged?.choice ?? "-")")
+            }
+        } else {
+            offersDelegate = false
+        }
         await thread.appendUser(heard, context: context)
         var history = await thread.historyTurns()
         // The full block rides the current turn only (Wave 10a); so does the
@@ -394,7 +404,10 @@ final class ClassicRuntime: @unchecked Sendable {
         // The facts are in the prompt now: only here are they spent.
         if let context { sensor?.acknowledgeIslandEvents(through: context.islandEventsThrough) }
         if let last = history.indices.last, history[last].role == .user {
-            let spoken = ContextBlock.languageInstruction(language) + "\n\n" + heard
+            var spoken = ContextBlock.languageInstruction(language) + "\n\n" + heard
+            if onDelegate != nil, !offersDelegate {
+                spoken = DelegationHead.withdrawnNote + "\n" + spoken
+            }
             history[last].content = ContextBlock.wrap(spoken, with: block)
         }
         // 16k-3: the words decide which connected app's tools travel this
@@ -402,12 +415,7 @@ final class ClassicRuntime: @unchecked Sendable {
         parentTools?.noteTurn(heard)
         var tools = parentTools?.specs(language) ?? []
         if onDelegate != nil {
-            let judged = await DecisionJudge.verdict(verdict, within: delegationWait)
-            if DelegationHead.offersDelegate(judged) {
-                tools.append(.delegate(language))
-            } else {
-                Log.chat("decision: delegate withdrawn verdict=\(judged?.choice ?? "-")")
-            }
+            if offersDelegate { tools.append(.delegate(language)) }
             tools.append(.stopJob(language))
             tools.append(.resolveApproval(language))
         }

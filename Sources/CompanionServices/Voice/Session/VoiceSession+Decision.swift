@@ -17,13 +17,33 @@ extension VoiceSession {
     package func attachDecision(_ gate: DecisionGate, judge: DecisionJudge? = nil) {
         classic.decide = { [weak self] utterance, canDelegate in
             guard let self else { return .passThrough(.disabled) }
+            var turn: DecisionJudge?
+            if let judge { turn = await self.turnJudge(utterance, judge) }
             return await self.routeThroughDecisionGate(
-                utterance, canDelegate: canDelegate, gate: gate,
-                hosted: judge?.usesHostedJudge ?? false)
+                utterance, canDelegate: canDelegate, gate: gate, judge: turn)
         }
         if let judge {
-            classic.delegationVerdict = { utterance in await judge.delegationVerdict(utterance) }
+            classic.delegationVerdict = { [weak self] utterance in
+                guard let self else { return nil }
+                // A "sí"/"no" to an open question is answered on the Mac;
+                // it does not go out to be judged a second time.
+                guard await !gate.answersPendingConfirmation(utterance) else { return nil }
+                return await self.turnJudge(utterance, judge).delegationVerdict(utterance)
+            }
         }
+    }
+
+    /// Both seams of one hold ask for the same utterance within moments;
+    /// the second gets the first's pin. The window keeps a repeat of the
+    /// same words later on from inheriting a key that was since removed.
+    private func turnJudge(_ utterance: String, _ judge: DecisionJudge) -> DecisionJudge {
+        if let pinned = pinnedJudge, pinned.utterance == utterance,
+           Date().timeIntervalSince(pinned.at) < 10 {
+            return pinned.judge
+        }
+        let held = judge.pinned()
+        pinnedJudge = (utterance, Date(), held)
+        return held
     }
 
     /// The "Decidir en local" toggle (DM1c-3) is read fresh here, not at
@@ -35,8 +55,9 @@ extension VoiceSession {
     /// model, and the fast-brain skip was measured against the local 4B
     /// cascade, not one round trip to Jev.
     private func routeThroughDecisionGate(
-        _ utterance: String, canDelegate: Bool, gate: DecisionGate, hosted: Bool
+        _ utterance: String, canDelegate: Bool, gate: DecisionGate, judge: DecisionJudge?
     ) async -> DecisionOutcome {
+        let hosted = judge?.usesHostedJudge ?? false
         guard hosted || configProvider.current.decision.enabled else {
             return .passThrough(.disabled)
         }
@@ -62,7 +83,8 @@ extension VoiceSession {
         }
         let step = await gate.plan(
             utterance, canDelegate: canDelegate,
-            budget: hosted ? configProvider.current.decision.hostedBudget : nil)
+            budget: hosted ? configProvider.current.decision.hostedBudget : nil,
+            provider: judge)
         markTool(.decision)
         // Only `.execute` runs through the SAME door the parent-tool loop
         // uses (`ParentToolRunner`, inside `gate.run`): the session's own

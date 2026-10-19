@@ -284,6 +284,10 @@ package enum PlanThreshold {
     package static let reversibleAct = 0.6
     /// Both the 0.6–0.8 band and a 0.99 confirm by voice. 0.8 is not a skip.
     package static let irreversibleFloor = 0.6
+    /// A background job is the costliest thing the router can start on its
+    /// own, and with a hosted judge it hears every hold, ambient speech
+    /// included: a low-peak `task` argmax goes back to the brain instead.
+    package static let taskFloor = 0.6
 
     package static func evaluate(
         action: DecisionAction,
@@ -297,7 +301,11 @@ package enum PlanThreshold {
             return directed ? .arbitrate : .ignore
         }
         guard argumentsComplete, confidence.isFinite else { return .arbitrate }
-        if action == .task { return .delegate }
+        if action == .task {
+            guard confidence >= taskFloor else { return .arbitrate }
+            // "borra", "envía": a job that cannot be undone is asked first.
+            return risk == .irreversible ? .confirm : .delegate
+        }
         switch risk {
         case .irreversible:
             return confidence >= irreversibleFloor ? .confirm : .arbitrate

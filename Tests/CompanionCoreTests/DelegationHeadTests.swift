@@ -16,13 +16,33 @@ import Testing
         distribution[choice] = peak
         return DecisionAnswer(choice: choice, distribution: distribution, confidence: 0.99)
     }
-    expect(!DelegationHead.offersDelegate(verdict("answer", peak: 0.97)), "answer, sure: withdrawn")
-    expect(!DelegationHead.offersDelegate(verdict("own_tool", peak: 0.97)), "own tool, sure: withdrawn")
-    expect(DelegationHead.offersDelegate(verdict("answer", peak: 0.6)),
+    expect(!DelegationHead.offersDelegate(utterance: "hola", verdict("answer", peak: 0.97)), "answer, sure: withdrawn")
+    expect(!DelegationHead.offersDelegate(utterance: "hola", verdict("own_tool", peak: 0.97)), "own tool, sure: withdrawn")
+    expect(DelegationHead.offersDelegate(utterance: "hola", verdict("answer", peak: 0.6)),
            "answer, unsure: the mass caps the claimed 0.99, kept")
-    expect(DelegationHead.offersDelegate(verdict("delegate", peak: 0.97)), "delegate: kept")
-    expect(DelegationHead.offersDelegate(verdict("ask", peak: 0.97)), "ask: kept, never forced")
-    expect(DelegationHead.offersDelegate(nil), "no verdict: kept")
+    expect(DelegationHead.offersDelegate(utterance: "hola", verdict("delegate", peak: 0.97)), "delegate: kept")
+    expect(DelegationHead.offersDelegate(utterance: "hola", verdict("ask", peak: 0.97)), "ask: kept, never forced")
+    expect(DelegationHead.offersDelegate(utterance: "hola", nil), "no verdict: kept")
     let invented = DecisionAnswer(choice: "answer", distribution: ["answer": 1], confidence: 1)
-    expect(DelegationHead.offersDelegate(invented), "invalid distribution: kept")
+    expect(DelegationHead.offersDelegate(utterance: "hola", invented), "invalid distribution: kept")
+}
+
+/// M2: when the words themselves ask for a background or specialist job, no
+/// verdict takes the hand-off away.
+@Test func delegationHeadNeverWithdrawsAnExplicitHandOff() {
+    let ids = DelegationHead.question("x").offeredIds
+    var distribution = Dictionary(uniqueKeysWithValues: ids.map { ($0, 0.01) })
+    distribution["answer"] = 0.97
+    let sure = DecisionAnswer(choice: "answer", distribution: distribution, confidence: 0.99)
+    for said in [
+        "resume este repo en segundo plano", "encárgate de ordenar mis descargas",
+        "hazlo con Claude", "pásaselo al especialista", "delega la migracion",
+        "do it in the background", "have Claude Code fix it", "hand this off",
+    ] {
+        expect(DelegationHead.asksToDelegate(said), "explicit: \(said)")
+        expect(DelegationHead.offersDelegate(utterance: said, sure), "kept: \(said)")
+    }
+    for said in ["que hora es en tokio", "abre Safari", "explain claude shannon's theorem"] {
+        expect(!DelegationHead.asksToDelegate(said), "not explicit: \(said)")
+    }
 }

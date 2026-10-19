@@ -35,6 +35,73 @@ import CompanionTestKit
     await testAHostedJudgeStillConfirmsTheTrash()
     await testAConfidentSelfHandledVerdictWithdrawsDelegate()
     await testASilentHostedJudgePassesTheTurnToTheBrain()
+    await testAnIrreversibleTaskIsAskedBeforeItIsHandedOff()
+    await testAYesToAnOpenQuestionIsNotSentToTheDelegationHead()
+}
+
+/// M6: the "sí" that answers an open question is decided on the Mac; the
+/// delegation head is not asked about it.
+@MainActor func testAYesToAnOpenQuestionIsNotSentToTheDelegationHead() async {
+    unsetenv("COMPANION_DECISION")
+    let script = trashProvider()
+    let heads = CallCounter()
+    let hosted = ScriptedHosted(configured: true) { question in
+        if question.id == DelegationHead.id { heads.increment(); return nil }
+        return script.body(question)
+    }
+    let system = RecordingSystemActing()
+    let judge = DecisionJudge(hosted: hosted, local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        system: system, world: { DecisionWorld() }, budget: .seconds(2))
+    let h = makeVoiceHarness(jobs: CapturingSubmitter(), language: .es)
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "vacia la papelera"
+    await h.session.hold()
+    await pumpUntil("m6: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("m6: asks") { h.synth.queue.contains("¿Vacío la papelera?") }
+    await h.session.awaitClassicTurn()
+    let before = heads.count
+
+    h.transcriber.stoppedText = "si"
+    await h.session.hold()
+    await pumpUntil("m6 yes: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("m6 yes: emptied") { system.actCount == 1 }
+    await h.session.awaitClassicTurn()
+    expectEq(heads.count, before, "m6: the yes never reaches the delegation head")
+}
+
+/// M1: with the key the router hears every hold, so a job that cannot be
+/// undone ("envía un email") is asked by voice first, and only a "sí" hands
+/// it to the specialist.
+@MainActor func testAnIrreversibleTaskIsAskedBeforeItIsHandedOff() async {
+    unsetenv("COMPANION_DECISION")
+    let script = taskProvider()
+    let judge = DecisionJudge(
+        hosted: ScriptedHosted(configured: true) { script.body($0) },
+        local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        world: { DecisionWorld() }, budget: .seconds(2))
+    let jobs = CapturingSubmitter()
+    let h = makeVoiceHarness(jobs: jobs, language: .es)
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "envia un email"
+    await h.session.hold()
+    await pumpUntil("task confirm: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("task confirm: asks") { h.synth.queue.contains("¿Encargo «envia un email»?") }
+    expect(jobs.goals.isEmpty, "task confirm: no job before the yes")
+
+    h.transcriber.stoppedText = "si"
+    await h.session.hold()
+    await pumpUntil("task yes: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("task yes: handed off") { jobs.goals == ["envia un email"] }
 }
 
 /// The hosted budget: a judge that never answers loses the race and the turn
@@ -188,6 +255,9 @@ private struct SilentHosted: HostedDecisionProviding {
                  "head: delegate offered=\(offered) for confidence \(verdict?.confidence ?? -1)")
         expect(h.chat.toolsSeen.contains { $0.name == "stop_job" },
                "head: the other job tools stay")
+        let sent = h.chat.histories.first?.last { $0.role == .user }?.content ?? ""
+        expectEq(sent.contains(DelegationHead.withdrawnNote), !offered,
+                 "head: the turn says delegation is off exactly when the tool is gone")
     }
 }
 

@@ -73,7 +73,11 @@ private struct OrdenFixture: Sendable {
     expectEq(at(.system, .irreversible, 0.99, trust: 1), .confirm, "el trust no salta la confirmacion")
     expectEq(at(.openApp, .reversible, 0.4, trust: 1), .act, "trust 1 baja la linea reversible a 0.35")
     expectEq(at(.openApp, .reversible, 0.4, trust: nil), .arbitrate, "sin trust 0.4 no actua")
-    expectEq(at(.task, .irreversible, 0.99), .delegate, "la tarea la hace el especialista")
+    expectEq(at(.task, .reversible, 0.99), .delegate, "la tarea la hace el especialista")
+    expectEq(at(.task, .reversible, 0.6), .delegate, "tarea en 0.6 delega")
+    expectEq(at(.task, .reversible, 0.59), .arbitrate, "tarea bajo 0.6 no arranca un encargo")
+    expectEq(at(.task, .irreversible, 0.99), .confirm, "tarea irreversible confirma por voz")
+    expectEq(at(.task, .irreversible, 0.59), .arbitrate, "tarea irreversible dudosa no pregunta")
     expectEq(at(.none, .reversible, 0.99), .ignore, "none sin blanco es conversacion")
     expectEq(at(.none, .reversible, 0.99, directed: true), .arbitrate, "none sobre una orden clara arbitra")
     expectEq(at(.openApp, .reversible, 0.99, complete: false), .arbitrate, "sin argumento no actua")
@@ -410,7 +414,7 @@ private func problems(_ plan: Plan, _ row: OrdenFixture) -> [String] {
     if plan.confidence < 0.8 { bad(String(format: "confianza %.3f", plan.confidence)) }
     if (plan.risk == .irreversible) != row.irreversible { bad("riesgo \(plan.risk.rawValue)") }
     let wanted: PlanDisposition
-    if row.accion == "task" { wanted = .delegate }
+    if row.accion == "task" { wanted = row.irreversible ? .confirm : .delegate }
     else if row.accion == "none" { wanted = .ignore }
     else if row.irreversible { wanted = .confirm }
     else { wanted = .act }

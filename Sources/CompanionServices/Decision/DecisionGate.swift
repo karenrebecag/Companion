@@ -103,11 +103,12 @@ package actor DecisionGate {
     /// does). No side effects: nothing is executed here. `budget` overrides
     /// the gate's own for one call (the hosted judge runs on a tighter one).
     package func plan(
-        _ utterance: String, canDelegate: Bool, budget: Duration? = nil
+        _ utterance: String, canDelegate: Bool, budget: Duration? = nil,
+        provider override: (any DecisionProvider)? = nil
     ) async -> DecisionStep {
         let world = worldProvider()
         let supports = systemSupports
-        let provider = self.provider
+        let provider = override ?? self.provider
         let arbiter = self.arbiter
         let work = Task<DecisionStep, Never> {
             await Self.route(
@@ -156,6 +157,14 @@ package actor DecisionGate {
     /// words heard were not a yes/no to it — and the caller routes
     /// `utterance` through `plan`/`run` exactly as any other turn, the same
     /// one that was just heard.
+    /// True when `utterance` is a yes/no to a question still open: that
+    /// turn is answered locally and nothing about it needs to be judged.
+    package func answersPendingConfirmation(_ utterance: String) -> Bool {
+        guard let pending, now().timeIntervalSince(pending.createdAt) < Self.confirmationTTL
+        else { return false }
+        return SpokenConfirmation.reading(utterance) != nil
+    }
+
     package func answerConfirmation(_ utterance: String) async -> DecisionOutcome? {
         guard let confirmation = pending else { return nil }
         guard now().timeIntervalSince(confirmation.createdAt) < Self.confirmationTTL else {
@@ -187,6 +196,13 @@ package actor DecisionGate {
     /// so an unrelated later "sí" is free to fall through to `plan`/`run`
     /// like any other turn instead of replaying this outcome.
     private func runConfirmed(_ confirmation: PendingConfirmation) async -> DecisionOutcome {
+        // A confirmed job is handed off, not executed here; the job queue,
+        // not this ledger, owns not running the same goal twice.
+        if confirmation.plan.action == .task,
+           case .text(let goal) = confirmation.plan.args["goal"], !goal.isEmpty {
+            clearPending()
+            return .delegate(Handoff(goal: goal, context: ""))
+        }
         guard let system, let key = confirmation.plan.retryKey else {
             clearPending()
             return .passThrough(.noExecutor)

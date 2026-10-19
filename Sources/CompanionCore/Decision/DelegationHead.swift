@@ -35,7 +35,8 @@ package enum DelegationHead {
                     id: delegate,
                     detail: "A multi-step job worth handing to a background agent: create or "
                         + "edit files or documents, fill a form, work through an app or site "
-                        + "over several steps"),
+                        + "over several steps; also whenever the user asks for it to run in "
+                        + "the background or by the specialist"),
                 DecisionOption(
                     id: ask,
                     detail: "Too ambiguous to act on: the assistant should ask what is meant"),
@@ -43,8 +44,10 @@ package enum DelegationHead {
     }
 
     /// Only a validated, confident "answer" or "own tool" withdraws the
-    /// tool. No answer, a low one, "delegate" or "ask" all leave it offered.
-    package static func offersDelegate(_ verdict: DecisionAnswer?) -> Bool {
+    /// tool, and never when the words ask for the hand-off themselves. No
+    /// answer, a low one, "delegate" or "ask" all leave it offered.
+    package static func offersDelegate(utterance: String, _ verdict: DecisionAnswer?) -> Bool {
+        if asksToDelegate(utterance) { return true }
         let asked = question("")
         guard let verdict = verdict?.validated(for: asked), let choice = verdict.choice else {
             return true
@@ -52,4 +55,24 @@ package enum DelegationHead {
         let selfHandled = choice == answer || choice == ownTool
         return !(selfHandled && verdict.confidence >= withdrawFloor)
     }
+
+    /// Folded and matched at a word start. Whole phrases only: a bare
+    /// "claude" would catch "explain Claude Shannon's theorem".
+    private static let handOffPhrases = [
+        "segundo plano", "encargate", "encargale", "delega", "con claude", "a claude",
+        "al especialista", "el especialista", "pasaselo", "in the background", "background job",
+        "delegate", "hand this off", "hand it off", "hand off", "claude code", "with claude",
+        "have claude", "the specialist",
+    ]
+
+    package static func asksToDelegate(_ utterance: String) -> Bool {
+        let folded = " " + CandidateSets.fold(utterance) + " "
+        return handOffPhrases.contains { folded.contains(" " + $0) }
+    }
+
+    /// Rides the turn's own message when `delegate` is withdrawn, so a system
+    /// prompt that describes delegation never has the brain promise one it
+    /// cannot make.
+    package static let withdrawnNote =
+        "Delegation is not available for this turn: answer it or use your own tools."
 }
