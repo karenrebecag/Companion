@@ -46,7 +46,16 @@ struct ChatTurnsTests {
         let run = ChatTurns.thread(messages).turns.last?.answer?.run
         #expect(run?.steps.map(\.status) == [.failed])
         #expect(run?.steps.first?.title == "Navegador: La llamada tenía argumentos inválidos.")
-        #expect(run?.phase == .failed, "a run with a failed step is not drawn with the done check")
+        #expect(run?.phase == .done, "an answered turn keeps its header; the failure stays on the step")
+        let noAnswer = ChatTurns.thread([
+            ChatMessage(role: .user, text: "Escribe"),
+            ChatMessage(isStatus: true, text: "Escribiendo…",
+                        recall: Recall(role: .assistant, content: "", toolCalls: [ToolCallRef(id: "c1", name: "browser_type", arguments: "{}")])),
+            ChatMessage(isStatus: true, text: "Navegador: falló.",
+                        recall: Recall(role: .tool, content: "x", toolCallID: "c1"), stepFailed: true),
+            ChatMessage(isStatus: true, text: "El proveedor falló.", isFailure: true),
+        ]).turns.last?.answer?.run
+        #expect(noAnswer?.phase == .failed, "a turn that failed without an answer fails its header")
         #expect(run?.worked == Localized.string("chat.run.failures.one"))
     }
 

@@ -57,9 +57,10 @@ enum ChatAgentRun {
                           acting: ParentToolCopy.acting([target], Localized.language()))
     }
 
-    /// The parent's calls as one run. Its summary is "<failures> · <steps>",
-    /// and a run with a failed step is never drawn as done: Arc's done mark is
-    /// a green check, which would call a failure a success.
+    /// The parent's calls as one run. Its summary is "<failures> · <steps>".
+    /// Only a turn that gave no answer is a failed run: a reply that came
+    /// back with some failed steps keeps the done header, and the failures
+    /// stay on their own steps.
     static func parent(_ steps: [ParentStep], settled: Bool, stopped: Bool, failedTurn: Bool) -> AIAgentRun? {
         guard !steps.isEmpty else { return nil }
         let rail = steps.map { step in
@@ -71,7 +72,7 @@ enum ChatAgentRun {
             .running
         } else if stopped {
             .stopped
-        } else if failedTurn || failed > 0 {
+        } else if failedTurn {
             .failed
         } else {
             .done
