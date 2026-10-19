@@ -1,0 +1,1 @@
+- **Tus servidores MCP funcionan en el chat y en la voz (2026-10-19).** Las herramientas de los servidores que añades en Apps llegan ahora al cerebro en el chat escrito y en la voz de mantener para hablar; antes solo vivían en la voz en tiempo real, que ya no existe. Cada llamada pide permiso en la hoja, y un servidor que no responde se omite sin frenar el turno.

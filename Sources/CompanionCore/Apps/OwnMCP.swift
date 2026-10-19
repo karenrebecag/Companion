@@ -18,12 +18,12 @@ package enum OwnMCPEdit {
         case emptyName, invalidName, duplicateName, invalidURL
     }
 
-    /// The label reaches OpenAI as `server_label` and the model
-    /// instructions verbatim: ascii word characters only, bounded.
+    /// The label becomes part of the model-facing tool names and of the
+    /// result envelope: ascii word characters only, bounded.
     static let labelLimit = 64
 
     /// Appends a validated server. https only, no embedded credentials:
-    /// the config can carry a bearer token, OpenAI reaches the server from
+    /// the config can carry a bearer token, the server is reached from
     /// outside this Mac, and userinfo in the URL would travel in clear
     /// without ever showing in the UI (review 16k-4 M3).
     package static func add(

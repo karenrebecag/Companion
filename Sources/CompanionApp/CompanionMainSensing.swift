@@ -218,18 +218,26 @@ func makeSensingAndModel(
             }
         })
     Task.detached(priority: .utility) { await appTools.refresh() }
+    // The user's own MCP servers (Apps > Tus servidores MCP) list the same
+    // way: at launch and whenever the Apps page changes something.
+    let ownMCPTools = OwnMCPToolRunner(servers: { [hostSecrets = env.hostSecrets] in
+        MCPConfigFile.load(secrets: hostSecrets)
+    })
+    Task.detached(priority: .utility) { await ownMCPTools.refresh() }
     // The Apps page says when an account changed; the TTL is only the
     // fallback for changes made outside this app.
     NotificationCenter.default.addObserver(
         forName: .companionAppsChanged, object: nil, queue: nil
     ) { _ in
         Task.detached(priority: .utility) { await appTools.refresh() }
+        Task.detached(priority: .utility) { await ownMCPTools.refresh() }
     }
     // Conversation only, like the connected apps: the bridge never lends it.
     let windowTools = WindowArrangeRunner(
         arranging: AXWindowArranger(trust: { accessibility.isTrusted() }))
     let conversationTools = browserHost.conversationTools(
-        parent: CompositeParentTools([parentTools, windowTools, MemoryToolRunner(notes: env.memoryStore)]), apps: appTools)
+        parent: CompositeParentTools([parentTools, windowTools, MemoryToolRunner(notes: env.memoryStore)]),
+        apps: CompositeParentTools([appTools, ownMCPTools]))
     let model = ChatViewModel(
         chat: providers.chat, secrets: env.secrets, store: providers.store, config: env.config,
         jobSubmitter: jobs.jobRunner,

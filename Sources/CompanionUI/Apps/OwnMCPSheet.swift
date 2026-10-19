@@ -2,10 +2,9 @@ import CompanionCore
 import SwiftUI
 
 /// 16k-4 "Añádelo aquí" (spec 16k §2.6): the user's own remote MCP
-/// servers, on top of what 9j-3 already runs. The page edits the same
-/// mcp.json the user could edit by hand; the next realtime session picks
-/// the list up on open, which the note below says out loud (16m: the UI
-/// never promises more than what runs).
+/// servers. The page edits the same mcp.json the user could edit by hand;
+/// the list is listed again at launch and on every change, which the note
+/// below says out loud (16m: the UI never promises more than what runs).
 struct OwnMCPSheet: View {
     var apps: AppsModel
     let onClose: () -> Void

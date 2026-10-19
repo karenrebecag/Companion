@@ -5,7 +5,7 @@ package struct ApprovalRequest: Sendable, Equatable {
     package var toolName: String
     package var summary: String
     package var inputJSON: String
-    /// Minted by the realtime session for the user's own MCP servers. An
+    /// Minted for the user's own MCP servers (OwnMCPToolRunner). An
     /// explicit origin, not a name shape: the sheet, the job-deny rule and
     /// the remember toggle all branch on it (20c D2 review).
     package var isMCP: Bool

@@ -629,7 +629,7 @@
 "apps.own.prompt" = "¿Tienes tu propio servidor MCP?";
 "apps.own.add" = "Añádelo aquí";
 "apps.own.title" = "Tus servidores MCP";
-"apps.own.note" = "Sus herramientas corren en las sesiones de voz en tiempo real, ejecutadas por el servidor de OpenAI. Companion pregunta antes de que cualquiera actúe.";
+"apps.own.note" = "Sus herramientas están disponibles en el chat y en la voz de mantener para hablar. Companion pregunta antes de que cualquiera actúe.";
 "apps.own.none" = "Aún no hay servidores.";
 "apps.own.name" = "Nombre";
 "apps.own.url" = "https://…";
