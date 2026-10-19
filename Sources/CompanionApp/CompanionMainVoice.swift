@@ -82,8 +82,13 @@ func makeVoicePipeline(
     let decisionProvider = OllamaDecisionProvider(
         baseURL: URL(string: env.config.decision.ollamaURL) ?? ProviderDescriptor.ollama.baseURL,
         model: env.config.decision.judgeModel)
+    // Jev while the TypeSafe key is saved, the local judge otherwise —
+    // checked per call, so nothing reaches TypeSafe without the key.
+    let decisionJudge = DecisionJudge(
+        hosted: TypeSafeDecisionProvider(secrets: env.secrets, transport: env.transport),
+        local: decisionProvider)
     let decisionGate = DecisionGate(
-        provider: decisionProvider,
+        provider: decisionJudge,
         arbiter: PassThroughArbiter(),
         tools: sensing.parentTools,
         system: systemActions,
@@ -153,7 +158,7 @@ func makeVoicePipeline(
     if env.config.decision.enabled {
         Task.detached { await decisionProvider.warm() }
     }
-    Task { await session.attachDecision(decisionGate) }
+    Task { await session.attachDecision(decisionGate, judge: decisionJudge) }
     Task { await session.attachFeedbackSound(SynthesizedUISound(isEnabled: { InterfaceSound.enabled })) }
     // 15d-6: opt-in by env; off, the previous run's words are removed.
     let transcriptLog = TranscriptDebugLog.standard(home: env.home)

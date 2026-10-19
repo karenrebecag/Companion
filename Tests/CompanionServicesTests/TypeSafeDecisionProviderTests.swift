@@ -22,6 +22,8 @@ import Testing
     testScoreTieNamesTheFirstLevel()
     testBatchIsOneRequestAnsweredPositionally()
     testBatchReplyMissingAKeyFailsAsAWhole()
+    testAPinnedTurnReadsTheKeychainOnceAndKeepsItsJudge()
+    testAThrowingKeychainSendsNothing()
 }
 
 private let endpoint = "https://api.typesafe.ai/v1/systemone"
@@ -272,4 +274,60 @@ private func batchQuestions() -> [DecisionQuestion] {
                "probabilities": ["open_app": 0.1, "open_url": 0.8, "none": 0.1]],
     ]])
     expect(answers.allSatisfy { $0 == nil }, "batch: a missing key voids every slot")
+}
+
+/// M4: one Keychain read per turn, and a key removed mid-turn does not
+/// switch the judge until the next pin.
+@MainActor private func testAPinnedTurnReadsTheKeychainOnceAndKeepsItsJudge() {
+    let store = CountingSecrets([.typesafe: "ts_live_0000000000000000"])
+    let transport = ScriptedTransport()
+    for _ in 0..<3 {
+        transport.enqueue(choiceReply(
+            choice: "open_app", probabilities: ["open_app": 0.9, "open_url": 0.05, "none": 0.05]))
+    }
+    let judge = DecisionJudge(
+        hosted: TypeSafeDecisionProvider(secrets: store, transport: transport),
+        local: OllamaDecisionProvider(transport: ScriptedTransport()))
+    let turn = judge.pinned()
+    let readsAfterPin = store.reads
+    store.remove(.typesafe)
+    expect(turn.usesHostedJudge, "pin: the turn keeps its judge after the key is removed")
+    for _ in 0..<3 {
+        _ = try! runAsync { await turn.answer(actionQuestion()) }
+    }
+    expectEq(store.reads, readsAfterPin, "pin: no Keychain read per question")
+    expectEq(transport.requests.count, 3, "pin: the turn's questions still go out")
+    expect(!judge.pinned().usesHostedJudge, "pin: the next turn sees the key is gone")
+}
+
+/// M7: a Keychain that throws is no key: nothing is sent.
+@MainActor private func testAThrowingKeychainSendsNothing() {
+    let transport = ScriptedTransport()
+    let provider = TypeSafeDecisionProvider(secrets: ThrowingSecrets(), transport: transport)
+    expect(!provider.isConfigured, "throwing keychain: not configured")
+    let answer = try! runAsync { await provider.answer(actionQuestion()) }
+    expect(answer == nil, "throwing keychain: nil")
+    expectEq(transport.requests.count, 0, "throwing keychain: nothing leaves the Mac")
+}
+
+private final class CountingSecrets: SecretStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [SecretKey: String]
+    private var _reads = 0
+    var reads: Int { lock.withLock { _reads } }
+
+    init(_ values: [SecretKey: String]) { self.values = values }
+
+    func read(_ key: SecretKey) throws -> String? {
+        lock.withLock { _reads += 1; return values[key] }
+    }
+    func write(_ key: SecretKey, value: String) throws { lock.withLock { values[key] = value } }
+    func delete(_ key: SecretKey) throws { remove(key) }
+    func remove(_ key: SecretKey) { lock.withLock { _ = values.removeValue(forKey: key) } }
+}
+
+private struct ThrowingSecrets: SecretStore {
+    func read(_ key: SecretKey) throws -> String? { throw SecretStoreError.denied }
+    func write(_ key: SecretKey, value: String) throws { throw SecretStoreError.denied }
+    func delete(_ key: SecretKey) throws { throw SecretStoreError.denied }
 }

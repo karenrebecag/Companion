@@ -30,6 +30,264 @@ import CompanionTestKit
     await testDecisionConfirmThenUnclearUtteranceRoutesNormally()
     await testDecisionOffNeverStartsAConfirmationEither()
     await testCerebrasBrainSkipsDecisionGateEvenWithTheToggleOn()
+    await testAHostedJudgeRoutesWithTheToggleOffAndAFastBrain()
+    await testWithoutTheKeyNothingReachesTheHostedJudge()
+    await testAHostedJudgeStillConfirmsTheTrash()
+    await testAConfidentSelfHandledVerdictWithdrawsDelegate()
+    await testASilentHostedJudgePassesTheTurnToTheBrain()
+    await testAnIrreversibleTaskIsAskedBeforeItIsHandedOff()
+    await testAYesToAnOpenQuestionIsNotSentToTheDelegationHead()
+}
+
+/// M6: the "sí" that answers an open question is decided on the Mac; the
+/// delegation head is not asked about it.
+@MainActor func testAYesToAnOpenQuestionIsNotSentToTheDelegationHead() async {
+    unsetenv("COMPANION_DECISION")
+    let script = trashProvider()
+    let heads = CallCounter()
+    let hosted = ScriptedHosted(configured: true) { question in
+        if question.id == DelegationHead.id { heads.increment(); return nil }
+        return script.body(question)
+    }
+    let system = RecordingSystemActing()
+    let judge = DecisionJudge(hosted: hosted, local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        system: system, world: { DecisionWorld() }, budget: .seconds(2))
+    let h = makeVoiceHarness(jobs: CapturingSubmitter(), language: .es)
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "vacia la papelera"
+    await h.session.hold()
+    await pumpUntil("m6: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("m6: asks") { h.synth.queue.contains("¿Vacío la papelera?") }
+    await h.session.awaitClassicTurn()
+    let before = heads.count
+
+    h.transcriber.stoppedText = "si"
+    await h.session.hold()
+    await pumpUntil("m6 yes: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("m6 yes: emptied") { system.actCount == 1 }
+    await h.session.awaitClassicTurn()
+    expectEq(heads.count, before, "m6: the yes never reaches the delegation head")
+}
+
+/// M1: with the key the router hears every hold, so a job that cannot be
+/// undone ("envía un email") is asked by voice first, and only a "sí" hands
+/// it to the specialist.
+@MainActor func testAnIrreversibleTaskIsAskedBeforeItIsHandedOff() async {
+    unsetenv("COMPANION_DECISION")
+    let script = taskProvider()
+    let judge = DecisionJudge(
+        hosted: ScriptedHosted(configured: true) { script.body($0) },
+        local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        world: { DecisionWorld() }, budget: .seconds(2))
+    let jobs = CapturingSubmitter()
+    let h = makeVoiceHarness(jobs: jobs, language: .es)
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "envia un email"
+    await h.session.hold()
+    await pumpUntil("task confirm: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("task confirm: asks") { h.synth.queue.contains("¿Encargo «envia un email»?") }
+    expect(jobs.goals.isEmpty, "task confirm: no job before the yes")
+
+    h.transcriber.stoppedText = "si"
+    await h.session.hold()
+    await pumpUntil("task yes: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("task yes: handed off") { jobs.goals == ["envia un email"] }
+}
+
+/// The hosted budget: a judge that never answers loses the race and the turn
+/// goes to the brain, as if the router had never run. No wall-clock check:
+/// the judge suspends until cancelled, so only the budget can end it.
+@MainActor func testASilentHostedJudgePassesTheTurnToTheBrain() async {
+    unsetenv("COMPANION_DECISION")
+    let judge = DecisionJudge(hosted: SilentHosted(), local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        world: { DecisionWorld(apps: ["Safari"], sites: []) }, budget: .seconds(3600))
+    let h = makeVoiceHarness()
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "abre Safari"
+    h.chat.rounds = [[.text("Listo.")]]
+    await h.session.hold()
+    await pumpUntil("silent: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("silent: the brain takes the turn") { !h.chat.histories.isEmpty }
+    await h.session.awaitClassicTurn()
+    expect(h.thread.turns.contains { $0.role == .assistant && $0.content.contains("Listo.") },
+           "silent: the brain answers; the gate's own hour-long budget never applied")
+}
+
+private struct SilentHosted: HostedDecisionProviding {
+    var isConfigured: Bool { true }
+
+    func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {
+        do {
+            try await Task.sleep(for: .seconds(3600))
+        } catch {
+            return nil
+        }
+        return nil
+    }
+}
+
+/// Jev wiring: with the key saved, the router runs even though the local
+/// toggle is off and Cerebras is the brain; the local judge is never asked.
+@MainActor func testAHostedJudgeRoutesWithTheToggleOffAndAFastBrain() async {
+    unsetenv("COMPANION_DECISION")
+    let opener = FakeWorkspaceOpener(installed: ["Safari"])
+    let local = CallCounter()
+    let hosted = ScriptedHosted(configured: true) { question in
+        switch question.id {
+        case DecisionHead.action: return peaked("open_app", question.offeredIds)
+        case DecisionHead.app: return peaked("Safari", question.offeredIds)
+        default: return nil
+        }
+    }
+    let judge = DecisionJudge(
+        hosted: hosted, local: ScriptedDecision { _ in local.increment(); return nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
+        world: { DecisionWorld(apps: ["Safari"], sites: []) }, budget: .seconds(2))
+    let h = makeVoiceHarness()
+    h.secrets.values[.cerebras] = "csk-test"
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "abre Safari"
+    await h.session.hold()
+    await pumpUntil("hosted: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("hosted: opened") { opener.openedApps == ["Safari"] }
+    expect(h.chat.histories.isEmpty, "hosted: the brain never sees the turn")
+    expectEq(local.count, 0, "hosted: the local judge is not asked")
+}
+
+/// No TypeSafe key: not one question goes to the hosted judge, with the
+/// local toggle off (router skipped) or on (local judge answers).
+@MainActor func testWithoutTheKeyNothingReachesTheHostedJudge() async {
+    for toggle in [false, true] {
+        if toggle { setenv("COMPANION_DECISION", "1", 1) } else { unsetenv("COMPANION_DECISION") }
+        defer { unsetenv("COMPANION_DECISION") }
+        let hosted = ScriptedHosted(configured: false) { _ in nil }
+        let local = CallCounter()
+        let judge = DecisionJudge(
+            hosted: hosted, local: ScriptedDecision { _ in local.increment(); return nil })
+        let gate = DecisionGate(
+            provider: judge, arbiter: NoArbiter(),
+            tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+            world: { DecisionWorld() }, budget: .seconds(2))
+        let h = makeVoiceHarness(jobs: CapturingSubmitter())
+        await h.session.attachDecision(gate, judge: judge)
+        h.transcriber.stoppedText = "abre Safari"
+        h.chat.rounds = [[.text("Listo.")]]
+        await h.session.hold()
+        await pumpUntil("no key: listening") { h.watch.latest.state == .listening }
+        await h.session.release()
+        await pumpUntil("no key: chat") { !h.chat.histories.isEmpty }
+        await h.session.awaitClassicTurn()
+        expectEq(hosted.calls, 0, "no key (toggle \(toggle)): nothing goes to TypeSafe")
+        expect(toggle ? local.count > 0 : local.count == 0,
+               "no key (toggle \(toggle)): the local judge runs only with its toggle")
+        expect(h.chat.toolsSeen.contains { $0.name == "delegate" },
+               "no key (toggle \(toggle)): delegate stays offered")
+    }
+}
+
+/// A hosted judge at 0.99 is still not consent for the irreversible: the
+/// trash asks first, and nothing runs until the user says yes.
+@MainActor func testAHostedJudgeStillConfirmsTheTrash() async {
+    unsetenv("COMPANION_DECISION")
+    let system = RecordingSystemActing()
+    let local = trashProvider()
+    let judge = DecisionJudge(
+        hosted: ScriptedHosted(configured: true) { local.body($0) },
+        local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        system: system, world: { DecisionWorld() }, budget: .seconds(2))
+    let h = makeVoiceHarness(language: .es)
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "vacia la papelera"
+    await h.session.hold()
+    await pumpUntil("hosted trash: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("hosted trash: asks") { h.synth.queue.contains("¿Vacío la papelera?") }
+    expectEq(system.actCount, 0, "hosted trash: nothing runs while asking")
+}
+
+/// The delegation head: a confident "I can answer this" takes `delegate`
+/// off the brain's tools for this turn; an unsure one leaves it there.
+@MainActor func testAConfidentSelfHandledVerdictWithdrawsDelegate() async {
+    unsetenv("COMPANION_DECISION")
+    for (verdict, offered) in [(peaked("answer", ["answer", "own_tool", "delegate", "ask"]), false),
+                               (soft("answer"), true)] {
+        let hosted = ScriptedHosted(configured: true) { question in
+            switch question.id {
+            case DecisionHead.action: return peaked("none", question.offeredIds)
+            case DelegationHead.id: return verdict
+            default: return nil
+            }
+        }
+        let judge = DecisionJudge(hosted: hosted, local: ScriptedDecision { _ in nil })
+        let gate = DecisionGate(
+            provider: judge, arbiter: NoArbiter(),
+            tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+            world: { DecisionWorld() }, budget: .seconds(2))
+        let h = makeVoiceHarness(jobs: CapturingSubmitter())
+        await h.session.attachDecision(gate, judge: judge)
+        h.transcriber.stoppedText = "que hora es en tokio"
+        h.chat.rounds = [[.text("Las tres.")]]
+        await h.session.hold()
+        await pumpUntil("head: listening") { h.watch.latest.state == .listening }
+        await h.session.release()
+        await pumpUntil("head: chat") { !h.chat.histories.isEmpty }
+        await h.session.awaitClassicTurn()
+        expectEq(h.chat.toolsSeen.contains { $0.name == "delegate" }, offered,
+                 "head: delegate offered=\(offered) for confidence \(verdict?.confidence ?? -1)")
+        expect(h.chat.toolsSeen.contains { $0.name == "stop_job" },
+               "head: the other job tools stay")
+        let sent = h.chat.histories.first?.last { $0.role == .user }?.content ?? ""
+        expectEq(sent.contains(DelegationHead.withdrawnNote), !offered,
+                 "head: the turn says delegation is off exactly when the tool is gone")
+    }
+}
+
+/// Answer-heavy but under `DelegationHead.withdrawFloor`.
+private func soft(_ choice: String) -> DecisionAnswer? {
+    let ids = ["answer", "own_tool", "delegate", "ask"]
+    var distribution = Dictionary(uniqueKeysWithValues: ids.map { ($0, 0.15) })
+    distribution[choice] = 0.55
+    return DecisionAnswer(
+        choice: choice, distribution: distribution,
+        confidence: DecisionMath.sharpness(distribution)
+    ).validated(against: ids)
+}
+
+private final class ScriptedHosted: HostedDecisionProviding, @unchecked Sendable {
+    let isConfigured: Bool
+    private let body: @Sendable (DecisionQuestion) -> DecisionAnswer?
+    private let lock = NSLock()
+    private var _calls = 0
+    var calls: Int { lock.withLock { _calls } }
+
+    init(configured: Bool, body: @escaping @Sendable (DecisionQuestion) -> DecisionAnswer?) {
+        self.isConfigured = configured
+        self.body = body
+    }
+
+    func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {
+        lock.withLock { _calls += 1 }
+        return body(question)
+    }
 }
 
 /// Row 12 (wave-15c §4): the toggle stays on, but with the hold's brain

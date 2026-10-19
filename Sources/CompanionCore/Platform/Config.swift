@@ -336,17 +336,24 @@ package struct DecisionSettings: Sendable, Equatable {
     package var enabled: Bool
     /// `DecisionGate.plan`'s race budget (wave-dm1-router.md §8 done: "commit→decision < 1.5s").
     package var budget: Duration
+    /// The hosted judge's race budget. With its key saved the router runs in
+    /// front of every hold, including the ones it passes on, and the brain
+    /// alone answers "abre X" in 0.3-0.6 s: a 2 s wait would make Jev a
+    /// regression. Jev measured 170-420 ms, so a slower reply passes through.
+    package var hostedBudget: Duration
     package var judgeModel: String
     package var ollamaURL: String
 
     package init(
         enabled: Bool = ProcessInfo.processInfo.environment["COMPANION_DECISION"] == "1",
         budget: Duration = .seconds(2),
+        hostedBudget: Duration = .milliseconds(450),
         judgeModel: String = "qwen3:4b",
         ollamaURL: String = "http://localhost:11434"
     ) {
         self.enabled = enabled
         self.budget = budget
+        self.hostedBudget = hostedBudget
         self.judgeModel = judgeModel
         self.ollamaURL = ollamaURL
     }

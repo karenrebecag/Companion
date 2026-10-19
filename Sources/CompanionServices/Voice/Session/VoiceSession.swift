@@ -169,6 +169,9 @@ package actor VoiceSession: VoiceControlling {
     /// follows the OpenAI key until 14b. Setter is module-wide so the
     /// pumps extension can write it (private(set) is file-private).
     package internal(set) var lastStack: VoiceStack?
+    /// The decision judge pinned for the turn being decided; the router and
+    /// the delegation head of one hold share it (VoiceSession+Decision).
+    var pinnedJudge: (utterance: String, at: Date, judge: DecisionJudge)?
     var lastPartial = ""
     var partialTask: Task<Void, Never>?
     /// Which ear the running partial pump reads; it picks once, so a hold
