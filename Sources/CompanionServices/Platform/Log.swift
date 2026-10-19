@@ -68,6 +68,10 @@ package enum Log: Sendable {
 
     package static func chat(_ message: String) { write(tag: "chat", message: message) }
 
+    /// One line per call that leaves the Mac, naming the service and model
+    /// only: the content it carries never goes in the log.
+    package static func outbound(_ message: String) { write(tag: "out", message: message) }
+
     package static func audio(_ message: String) { write(tag: "audio", message: message) }
 
     /// Wave 17: the local bridge (socket, hello, calls). Never the tool
