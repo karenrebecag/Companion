@@ -48,6 +48,7 @@ enum ChatTurns {
             var calls: [ChatAgentRun.ParentStep] = []
             var cards: [Card] = []
             var failure: String?
+            var endedWithoutAnswer = false
             var stopped = false
             var run: AIAgentRun?
         }
@@ -75,6 +76,7 @@ enum ChatTurns {
                 if message.text == ChatCopy.jobStopped { current.stopped = true }
             } else {
                 if !message.text.isEmpty { current.texts.append(message.text) }
+                if message.endedWithoutAnswer { current.endedWithoutAnswer = true }
                 if let card = message.card { current.cards.append(card) }
             }
             reply = current
@@ -96,7 +98,7 @@ enum ChatTurns {
             var answer = ChatTurns.answer(text: text, status: status, failure: current.failure)
             answer.run = ChatAgentRun.joined(
                 ChatAgentRun.parent(current.calls, settled: settled, stopped: current.stopped,
-                                    failedTurn: current.failure != nil),
+                                    failedTurn: current.failure != nil || current.endedWithoutAnswer),
                 current.run)
             turns.append(AIChatTurn(id: current.id, content: .assistant(answer)))
             if !current.cards.isEmpty { cards[current.id] = current.cards }

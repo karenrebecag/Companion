@@ -561,6 +561,7 @@ private func openSafari(_ id: String = "c1", variant: Int = 0) -> ChatDelta {
     let last = vm.messages.last
     expect(last?.isStatus == false && last?.text.contains("open_app") == false,
            "bucle: el turno termina con una frase honesta, sin nombres de tools")
+    expect(last?.endedWithoutAnswer == true, "bucle: sin respuesta, el turno falla su encabezado")
     expect(chat.histories.last?.contains { $0.role == .tool && $0.content.contains("repeated_call") } == true,
            "bucle: el modelo recibe el error que dice que use otra tool")
 }

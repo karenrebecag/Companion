@@ -28,7 +28,7 @@ struct ChatTurnsTests {
         #expect(reply?.tools.isEmpty == true, "tool calls are the run's steps, not chips")
         #expect(reply?.run?.steps.map(\.status) == [.done])
         #expect(reply?.run?.steps.first?.title == "Abrí Safari.")
-        #expect(reply?.run?.worked == Localized.string("chat.run.failures.none"))
+        #expect(reply?.run?.worked == "", "no failures: the summary is the step count alone")
     }
 
     /// A tool result the app marked failed is a failed step, never a done
@@ -56,6 +56,17 @@ struct ChatTurnsTests {
             ChatMessage(isStatus: true, text: "El proveedor falló.", isFailure: true),
         ]).turns.last?.answer?.run
         #expect(noAnswer?.phase == .failed, "a turn that failed without an answer fails its header")
+        let outOfSteps = ChatTurns.thread([
+            ChatMessage(role: .user, text: "Busca"),
+            ChatMessage(isStatus: true, text: "Listando…",
+                        recall: Recall(role: .assistant, content: "", toolCalls: [ToolCallRef(id: "c1", name: "list_apps", arguments: "{}")])),
+            ChatMessage(isStatus: true, text: "Listé las apps.",
+                        recall: Recall(role: .tool, content: "ok", toolCallID: "c1")),
+            ChatMessage(role: .assistant, text: "Me quedé sin pasos antes de responder.", endedWithoutAnswer: true),
+        ]).turns.last?.answer
+        #expect(outOfSteps?.text.isEmpty == false, "the copy still shows")
+        #expect(outOfSteps?.status == .done)
+        #expect(outOfSteps?.run?.phase == .failed, "running out of steps is a failed run")
         #expect(run?.worked == Localized.string("chat.run.failures.one"))
     }
 

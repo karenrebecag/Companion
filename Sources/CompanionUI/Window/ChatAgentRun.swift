@@ -93,7 +93,7 @@ enum ChatAgentRun {
 
     private static func failureLine(_ count: Int) -> String {
         switch count {
-        case 0: Localized.string("chat.run.failures.none")
+        case 0: ""
         case 1: Localized.string("chat.run.failures.one")
         default: String(format: Localized.string("chat.run.failures.other"), count)
         }

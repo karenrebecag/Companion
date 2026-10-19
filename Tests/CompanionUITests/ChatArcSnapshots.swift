@@ -70,6 +70,20 @@ import Testing
         ]
     }()
 
+    /// A turn that ran out of steps: its copy says so and its run is failed.
+    static let outOfSteps: [ChatMessage] = {
+        let open = ToolCallRef(id: "c1", name: "browser_open", arguments: #"{"url":"https://example.com"}"#)
+        return [
+            ChatMessage(role: .user, text: "Busca el precio en esa página."),
+            ChatMessage(isStatus: true, text: "Abriendo la página…",
+                        recall: Recall(role: .assistant, content: "", toolCalls: [open])),
+            ChatMessage(isStatus: true, text: "Abrí una pestaña de fondo.",
+                        recall: Recall(role: .tool, content: "ok", toolCallID: "c1")),
+            ChatMessage(role: .assistant, text: "Me quedé sin pasos antes de responder: abrí una pestaña de fondo.",
+                        endedWithoutAnswer: true),
+        ]
+    }()
+
     static let streamingMessages: [ChatMessage] = table + [
         ChatMessage(role: .user, text: "Busca hoteles cerca de Miraflores para esas fechas."),
     ]
@@ -102,6 +116,7 @@ import Testing
         ("table-sources-dark", ChatArcFixture.table, nil, .dark),
         ("tools-light", ChatArcFixture.tools, nil, .light),
         ("tools-failed-light", ChatArcFixture.toolsFailed, nil, .light),
+        ("out-of-steps-light", ChatArcFixture.outOfSteps, nil, .light),
         ("streaming-light", ChatArcFixture.streamingMessages, ChatArcFixture.streamingLive, .light),
         ("streaming-dark", ChatArcFixture.streamingMessages, ChatArcFixture.streamingLive, .dark),
     ]

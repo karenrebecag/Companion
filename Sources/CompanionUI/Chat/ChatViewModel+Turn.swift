@@ -103,7 +103,7 @@ extension ChatViewModel {
                         await commit(
                             preface: ParentToolCopy.noAnswer(
                                 attempts: turnAttempts(), config.language),
-                            handoff: nil)
+                            handoff: nil, endedWithoutAnswer: true)
                         break
                     }
                     await commit(preface: preface, handoff: handoff)
@@ -121,7 +121,7 @@ extension ChatViewModel {
                     await commit(
                         preface: ParentToolCopy.noAnswer(
                             attempts: turnAttempts(), config.language),
-                        handoff: nil)
+                        handoff: nil, endedWithoutAnswer: true)
                     break
                 }
                 history = windowedTurns()
@@ -455,7 +455,7 @@ extension ChatViewModel {
         }
     }
 
-    private func commit(preface: String, handoff: Handoff?) async {
+    private func commit(preface: String, handoff: Handoff?, endedWithoutAnswer: Bool = false) async {
         if let handoff, let submitter = jobSubmitter {
             await runJob(preface: preface, handoff: handoff, submitter: submitter)
             return
@@ -472,7 +472,7 @@ extension ChatViewModel {
         }
 
         if !preface.isEmpty {
-            messages.append(ChatMessage(role: .assistant, text: preface))
+            messages.append(ChatMessage(role: .assistant, text: preface, endedWithoutAnswer: endedWithoutAnswer))
             recording { $0.reply = TurnReply(text: preface, isFailure: false) }
         }
     }
