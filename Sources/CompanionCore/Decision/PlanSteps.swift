@@ -12,9 +12,14 @@ extension Plan {
     /// The action, then a read step when a later clause asks to be told
     /// something. Only reads add steps: "open Notes and Safari" or "open it
     /// and close it" is still one routed action, as before.
+    ///
+    /// The judge's `read_back` answer adds recall the phrase list misses;
+    /// the list stays as the floor, so a failed judge still hands a
+    /// "...and tell me" request to the model instead of acting alone.
     package var steps: [PlanStep] {
         guard action != .none else { return [] }
-        return [.act(action)] + (CompoundRequest.asksToRead(utterance) ? [.read] : [])
+        let reads = readsBack || CompoundRequest.asksToRead(utterance)
+        return [.act(action)] + (reads ? [.read] : [])
     }
 }
 
@@ -33,14 +38,25 @@ package enum CompoundRequest: Sendable {
     /// A read in any clause of a request with more than one: the router can
     /// act, but only the model can also answer.
     package static func asksToRead(_ utterance: String) -> Bool {
-        var clauses = [CandidateSets.fold(utterance)]
-        for mark in clauseBreaks {
-            clauses = clauses.flatMap { $0.components(separatedBy: mark) }
-        }
+        let clauses = clauses(utterance)
         guard clauses.count > 1 else { return false }
         return clauses.contains { clause in
             let lead = clause.trimmingCharacters(in: .whitespacesAndNewlines)
             return readLeads.contains { lead.hasPrefix($0) }
         }
+    }
+
+    /// Only a request with more than one clause can ask for something back,
+    /// so the judge is only asked about those.
+    package static func hasSeveralClauses(_ utterance: String) -> Bool {
+        clauses(utterance).count > 1
+    }
+
+    private static func clauses(_ utterance: String) -> [String] {
+        var clauses = [CandidateSets.fold(utterance)]
+        for mark in clauseBreaks {
+            clauses = clauses.flatMap { $0.components(separatedBy: mark) }
+        }
+        return clauses
     }
 }

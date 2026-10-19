@@ -1,6 +1,7 @@
 import CompanionCore
 import CompanionCoreTestSupport
 import CompanionServices
+import CompanionServicesTestSupport
 import CompanionTestKit
 import Foundation
 import Testing

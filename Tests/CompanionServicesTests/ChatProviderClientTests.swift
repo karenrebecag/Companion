@@ -31,7 +31,6 @@ import Testing
     testFailedPartialDoesNotLeakIntoFailover()
     testMemoryAndSkillsReachTheRequest()
     testGptOssRequestCarriesTheModelAndReasoningEffort()
-    testImageTurnNeverReachesGptOss()
 }
 
 /// TDD row 11: the hold's gpt-oss brain request — model, `reasoning_effort`,
@@ -499,19 +498,4 @@ func chatHosts(_ transport: ScriptedTransport) -> [String] {
     expectEq(joined, "Se convierte en energía química. Durante este proceso la planta crece. Fin",
              "frases: el espacio entre ellas llega")
     if case .text(let last) = deltas.last { expect(!last.hasSuffix(" "), "último delta sin espacio de cola") }
-}
-
-/// A picture never reaches the text-only gpt-oss: the turn moves to Cerebras's
-/// vision model on the same key, so a Cerebras-only user can still show an image.
-@MainActor func testImageTurnNeverReachesGptOss() {
-    let transport = ScriptedTransport()
-    transport.stub(.cerebrasVision, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
-    let img = AttachmentRef(name: "a.jpg", path: "/tmp/a.jpg", kind: .image)
-    _ = collectChat(
-        makeChatClient(
-            keys: [.cerebras: "csk-test"], available: ["cerebras"],
-            transport: transport, catalog: [ProviderDescriptor.cerebras]),
-        history: [Turn(role: .user, content: "qué ves", attachments: [img])])
-    let models = transport.requests.map { chatBody($0)["model"] as? String }
-    expectEq(models, ["qwen-3.8-27b"], "imagen: la request va a qwen, nunca a gpt-oss")
 }

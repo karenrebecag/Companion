@@ -24,6 +24,9 @@ package enum DecisionPassReason: String, Sendable, Equatable {
     /// 16h-1: "open X and tell me Y" — the router can only do the first
     /// half, so the whole request goes to the model that can also read.
     case compound
+    /// A typed message too long or multi-line to be a command
+    /// (`TypedCommand`): it goes to the brain without being judged.
+    case notACommand
 }
 
 /// What N1's cascade routes a turn to, before anything runs. `execute` and
@@ -198,6 +201,21 @@ package enum SpokenConfirmation: Sendable {
         let sawNo = !words.isDisjoint(with: negative)
         if sawYes == sawNo { return nil }
         return sawYes
+    }
+
+    /// Words a short typed answer may take ("sí, dale", "no gracias").
+    private static let typedAnswerLength = 3
+
+    /// A typed answer is the whole message, not its first clause: typed prose
+    /// that opens with "si" ("si puedes, abre Safari") is a conditional, not
+    /// a yes (security review of #360). Speech keeps `reading`, where a spoken
+    /// "sí, vacíala" carries its detail after the yes.
+    package static func readingTyped(_ written: String) -> Bool? {
+        let words = CandidateSets.tokens(written)
+        guard let first = words.first, words.count <= typedAnswerLength,
+              affirmative.contains(first) || negative.contains(first)
+        else { return nil }
+        return reading(written)
     }
 }
 

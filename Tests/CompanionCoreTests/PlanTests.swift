@@ -368,14 +368,14 @@ private func labeledChoice(_ question: DecisionQuestion, _ row: OrdenFixture) ->
         return options.first { $0.id == row.strings["path"] }?.id
     case DecisionHead.skill:
         return options.first { $0.id == row.strings["name"] }?.id
-    case DecisionHead.query:
-        return options.first { $0.detail == row.strings["query"] }?.id
-    case DecisionHead.text:
-        if let exact = options.first(where: { $0.detail == row.strings["text"] }) { return exact.id }
-        return options.first?.id
-    case DecisionHead.goal:
-        if let exact = options.first(where: { $0.detail == row.strings["goal"] }) { return exact.id }
-        return options.first?.id
+    case DecisionHead.queryStart, DecisionHead.queryEnd:
+        return spanToken(row, want: row.strings["query"], first: question.id == DecisionHead.queryStart)
+    case DecisionHead.textStart, DecisionHead.textEnd:
+        return spanToken(row, want: row.strings["text"], first: question.id == DecisionHead.textStart)
+    case DecisionHead.goalStart, DecisionHead.goalEnd:
+        return spanToken(row, want: row.strings["goal"], first: question.id == DecisionHead.goalStart)
+    case DecisionHead.readBack:
+        return CompoundRequest.asksToRead(row.texto) ? "yes" : "no"
     case DecisionHead.submit:
         let wanted = row.submit == true ? "yes" : "no"
         return options.contains { $0.id == wanted } ? wanted : nil
@@ -401,6 +401,28 @@ private func world(for row: OrdenFixture, apps: [String]) -> DecisionWorld {
         world.skills = [name]
     }
     return world
+}
+
+/// The labeled value's first or last token when the label is said verbatim
+/// (accents and case aside); the whole utterance when it is a paraphrase.
+private func spanToken(_ row: OrdenFixture, want: String?, first: Bool) -> String? {
+    let said = String(row.texto.prefix(400))
+    let tokens = SourceTokens.tokens(said)
+    guard let head = tokens.first, let tail = tokens.last(where: { $0.text.first?.isLetter == true
+        || $0.text.first?.isNumber == true }) ?? tokens.last
+    else { return nil }
+    if let want {
+        let target = CandidateSets.fold(want)
+        for i in tokens.indices {
+            for j in i..<tokens.count {
+                if let copy = SourceTokens.copy(said, from: tokens[i], through: tokens[j]),
+                   CandidateSets.fold(copy) == target {
+                    return first ? tokens[i].id : tokens[j].id
+                }
+            }
+        }
+    }
+    return first ? head.id : tail.id
 }
 
 private func contained(_ needle: String, in hay: String) -> Bool {

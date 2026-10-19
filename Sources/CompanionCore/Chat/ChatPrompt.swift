@@ -62,6 +62,9 @@ package enum ChatPrompt: Sendable {
         if delegateEnabled {
             prompt += " " + delegateRule(language, web: webSearchEnabled, read: webReadEnabled)
         }
+        if delegateEnabled || parentToolsEnabled || webSearchEnabled || webReadEnabled {
+            prompt += " " + sourcesRule(language, web: webSearchEnabled, read: webReadEnabled)
+        }
         // The chat layer paints cards too. It used to be the specialist's
         // privilege by accident — nobody decided it, the vocabulary simply
         // lived in the specialist's role — so a question about a place that
@@ -400,16 +403,6 @@ package enum ChatPrompt: Sendable {
     ) -> String {
         switch language {
         case .en:
-            let search = (web
-                ? (read
-                    ? "To search the internet use web_search, and read_url to read the 2-3 best results in full. "
-                    : "To search the internet use web_search. ")
-                : "To search the internet without web_search, open a search "
-                    + "with browser_open and read it with browser_read. ")
-                + "For figures, read a page that shows them as text (a table of "
-                + "historical values, the search results); a chart page has no "
-                + "numbers to read. If one source fails, try another before "
-                + "answering, and never send her to a site for what she asked you. "
             return "Answer yourself everything that comes from your own "
                 + "knowledge: explanations, comparisons, tables, charts, "
                 + "lists, example code, calculations. That is never "
@@ -421,7 +414,6 @@ package enum ChatPrompt: Sendable {
                 + "path or a file name, call read_file or open_file on it "
                 + "directly; list_directory only if that fails. web_fetch to read a URL, "
                 + "find_places only for physical places to find (never weather or news), the browser and your hands. "
-                + search
                 + "Call delegate only for heavy multi-step work "
                 + "(\"refactor this repo\", \"fix this bug and run the "
                 + "tests\", \"research this in depth\"), for writing or "
@@ -438,16 +430,6 @@ package enum ChatPrompt: Sendable {
                 + "executor — and you speak with the user. Be "
                 + "plain about it; there is nothing to hide."
         case .es:
-            let search = (web
-                ? (read
-                    ? "Para buscar en internet usa web_search, y read_url para leer completos los 2-3 mejores resultados. "
-                    : "Para buscar en internet usa web_search. ")
-                : "Para buscar en internet sin web_search, abre una búsqueda "
-                    + "con browser_open y léela con browser_read. ")
-                + "Para cifras, lee una página que las muestre como texto (una tabla "
-                + "de valores históricos, los resultados de búsqueda); una página de "
-                + "gráfica no tiene números que leer. Si una fuente falla, prueba otra "
-                + "antes de responder, y nunca la mandes a un sitio por lo que te pidió. "
             return "Contesta tú todo lo que sale de tu conocimiento: "
                 + "explicaciones, comparaciones, tablas, gráficas, listas, "
                 + "código de ejemplo, cálculos. Eso nunca se delega y nunca "
@@ -460,7 +442,6 @@ package enum ChatPrompt: Sendable {
                 + "esa falla. "
                 + "web_fetch para leer una URL, find_places "
                 + "solo para lugares físicos que encontrar (nunca clima ni noticias), el navegador y tus manos. "
-                + search
                 + "Llama a delegate solo para trabajo pesado de varios pasos "
                 + "(«refactoriza este repo», «arregla este bug y corre los "
                 + "tests», «investiga esto a fondo»), para escribir o cambiar "
@@ -475,6 +456,38 @@ package enum ChatPrompt: Sendable {
                 + "está instalado, o un ejecutor nativo integrado — y tú "
                 + "hablas con la usuaria. Dilo claro; "
                 + "no hay nada que esconder."
+        }
+    }
+
+    /// Searching and figures are the parent's whether or not it can delegate:
+    /// the rule sits outside delegateRule, so a parent without delegate still
+    /// carries it (QA 2026-10-18: both replies sent her to XE).
+    private static func sourcesRule(
+        _ language: AppLanguage, web: Bool, read: Bool
+    ) -> String {
+        switch language {
+        case .en:
+            return (web
+                ? (read
+                    ? "To search the internet use web_search, and read_url to read the 2-3 best results in full. "
+                    : "To search the internet use web_search. ")
+                : "To search the internet without web_search, open a search "
+                    + "with browser_open and read it with browser_read. ")
+                + "For figures, read a page that shows them as text (a table of "
+                + "historical values, the search results); a chart page has no "
+                + "numbers to read. If one source fails, try another before "
+                + "answering, and never send her to a site for what she asked you."
+        case .es:
+            return (web
+                ? (read
+                    ? "Para buscar en internet usa web_search, y read_url para leer completos los 2-3 mejores resultados. "
+                    : "Para buscar en internet usa web_search. ")
+                : "Para buscar en internet sin web_search, abre una búsqueda "
+                    + "con browser_open y léela con browser_read. ")
+                + "Para cifras, lee una página que las muestre como texto (una tabla "
+                + "de valores históricos, los resultados de búsqueda); una página de "
+                + "gráfica no tiene números que leer. Si una fuente falla, prueba otra "
+                + "antes de responder, y nunca la mandes a un sitio por lo que te pidió."
         }
     }
 }

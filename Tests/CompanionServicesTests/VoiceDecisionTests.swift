@@ -433,24 +433,6 @@ private func soft(_ choice: String) -> DecisionAnswer? {
     ).validated(against: ids)
 }
 
-private final class ScriptedHosted: HostedDecisionProviding, @unchecked Sendable {
-    let isConfigured: Bool
-    private let body: @Sendable (DecisionQuestion) -> DecisionAnswer?
-    private let lock = NSLock()
-    private var _calls = 0
-    var calls: Int { lock.withLock { _calls } }
-
-    init(configured: Bool, body: @escaping @Sendable (DecisionQuestion) -> DecisionAnswer?) {
-        self.isConfigured = configured
-        self.body = body
-    }
-
-    func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {
-        lock.withLock { _calls += 1 }
-        return body(question)
-    }
-}
-
 /// Row 12 (wave-15c §4): the toggle stays on, but with the hold's brain
 /// already Cerebras (15c-7, the only fast brain since 15e-3),
 /// `DecisionGate` is never called at all — the brain already picked the
@@ -1023,77 +1005,19 @@ private func taskProvider() -> ScriptedDecision {
     ScriptedDecision { question in
         switch question.id {
         case DecisionHead.action: return peaked("task", question.offeredIds)
-        case DecisionHead.goal: return peaked("c0", question.offeredIds)
+        case DecisionHead.goalStart: return peaked("t0", question.offeredIds)
+        case DecisionHead.goalEnd: return question.offeredIds.last.flatMap { peaked($0, question.offeredIds) }
         default: return nil
         }
     }
-}
-
-private struct NoArbiter: Arbitrating {
-    func arbitrate(
-        utterance: String, shortlist: ArbitrationShortlist
-    ) async -> (entry: ShortlistEntry, confidence: Double)? { nil }
-}
-
-final class CallCounter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _count = 0
-    var count: Int { lock.withLock { _count } }
-    func increment() { lock.withLock { _count += 1 } }
-}
-
-/// A local copy of `PlanTests.peaked` / `DecisionGateTests.peakedDecision`:
-/// same shape, both file-private to their own files.
-private func peaked(_ choice: String, _ ids: [String]) -> DecisionAnswer? {
-    guard !ids.isEmpty, Set(ids).contains(choice) else { return nil }
-    var distribution: [String: Double] = [:]
-    if ids.count == 1 {
-        distribution[choice] = 1
-    } else {
-        let share = 0.01 / Double(ids.count - 1)
-        var rest = 0.0
-        for id in ids where id != choice {
-            distribution[id] = share
-            rest += share
-        }
-        distribution[choice] = 1 - rest
-    }
-    return DecisionAnswer(
-        choice: choice, distribution: distribution,
-        confidence: DecisionMath.sharpness(distribution)
-    ).validated(against: ids)
 }
 
 /// DM1c-4 fakes and helpers.
-
-private func trashProvider() -> ScriptedDecision {
-    ScriptedDecision { question in
-        switch question.id {
-        case DecisionHead.action: return peaked("system", question.offeredIds)
-        case DecisionHead.system: return peaked("empty_trash", question.offeredIds)
-        default: return nil
-        }
-    }
-}
 
 private func closedSetPlan(action: DecisionAction, key: String, value: String) -> Plan {
     Plan(
         utterance: "orden", action: action, args: [key: .text(value)],
         confidence: 0.9, risk: .irreversible, disposition: .confirm)
-}
-
-final class RecordingSystemActing: SystemActing, @unchecked Sendable {
-    private let lock = NSLock()
-    private var _actCount = 0
-    var supportsAnswer = true
-    var actResult: SystemActResult = .done
-    var actCount: Int { lock.withLock { _actCount } }
-
-    func supports(_ plan: Plan) -> Bool { supportsAnswer }
-    func act(_ plan: Plan) async -> SystemActResult {
-        lock.withLock { _actCount += 1 }
-        return actResult
-    }
 }
 
 /// Injected for `DecisionGate`'s `now:` seam — advanced by hand instead of

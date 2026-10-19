@@ -1,0 +1,42 @@
+import Foundation
+
+/// What the router made of one turn. In Core so the typed chat, which
+/// cannot see the gate, reads the same outcome the hold does.
+package enum DecisionOutcome: Sendable, Equatable {
+    case passThrough(DecisionPassReason)
+    case acted(ParentToolOutcome, ToolCallRef)
+    case confirm(String)
+    case declined
+    case delegate(Handoff)
+}
+
+/// A typed message's turn, decided: the outcome, and whether the delegation
+/// head took `delegate` off the brain's tools for a pass-through.
+package struct TypedDecision: Sendable, Equatable {
+    package var outcome: DecisionOutcome
+    package var withdrawsDelegate: Bool
+
+    package init(outcome: DecisionOutcome, withdrawsDelegate: Bool) {
+        self.outcome = outcome
+        self.withdrawsDelegate = withdrawsDelegate
+    }
+}
+
+/// What typed text the router may judge at all. Pasted code, an email or a
+/// long paragraph is never a short command, and judging it would send all of
+/// it to the hosted judge (Karen, 2026-10-19: no setting, a shape rule). Two
+/// hundred characters holds any order the router can carry out.
+package enum TypedCommand {
+    package static let maxLength = 200
+
+    package static func mayBeJudged(_ text: String) -> Bool {
+        text.count <= maxLength && !text.contains(where: \.isNewline)
+    }
+}
+
+/// The typed chat's door to the same router the voice hold goes through.
+package protocol TurnDeciding: Sendable {
+    func decide(_ utterance: String, canDelegate: Bool) async -> TypedDecision
+    /// Drops the question still waiting for a yes/no, unanswered.
+    func dropOpenQuestion() async
+}

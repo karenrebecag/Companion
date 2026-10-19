@@ -14,6 +14,8 @@ extension ChatViewModel {
     ) -> String {
         parentTools?.beginTurn()
         turnToolsRan = false
+        delegateWithdrawn = false
+        if origin != .typed || !asUserWords { openQuestionStale = true }
         // 16k-3: the words decide which connected app's tools travel this
         // round — specs() is rebuilt per request further down this turn.
         // A pick's label is the model's text, not her words: it must not
@@ -45,9 +47,11 @@ extension ChatViewModel {
         let index = messages.count - 1
         inFlight = Task { [weak self] in
             guard let self else { return }
+            let routable = origin == .typed && asUserWords
+            if routable, await self.answeredByRouter(text, conversationId: id) { return }
             let history = await self.sensedHistory(
                 text, messageIndex: index, previousInteraction: previousInteraction, origin: origin)
-            await self.consume(history: history, conversationId: id, said: said)
+            await self.consume(history: self.noteWithdrawnDelegate(history), conversationId: id, said: said)
         }
         return turnId
     }
@@ -153,7 +157,7 @@ extension ChatViewModel {
         }
     }
 
-    private func endTurn(_ status: TurnStatus = .completed) {
+    func endTurn(_ status: TurnStatus = .completed) {
         busy = false
         busySince = nil
         if status == .completed { measureLatestReply() }
@@ -179,7 +183,7 @@ extension ChatViewModel {
         var handoff: Handoff?
         var calls: [ToolCallRef] = []
         let tools = (parentTools?.specs(config.language) ?? [])
-            + [.delegate(config.language), PresentContract.presentSpec]
+            + (delegateWithdrawn ? [] : [.delegate(config.language)]) + [PresentContract.presentSpec]
         for try await delta in chat.stream(history, tools: tools) {
             guard isCurrent(id) else { throw CancellationError() }
             switch delta {
@@ -448,6 +452,8 @@ extension ChatViewModel {
     /// on the sheet would answer it into another conversation. A job's
     /// request outlives the switch, like the job does.
     func dropParentApprovals() {
+        // Every caller leaves the thread the router's question was asked in.
+        openQuestionStale = true
         let parents = session.projection.approvalQueue
             .filter { ParentTool.ownsRequest($0.toolName) }
         for request in parents {
@@ -472,9 +478,25 @@ extension ChatViewModel {
         }
 
         if !preface.isEmpty {
-            messages.append(ChatMessage(role: .assistant, text: preface, endedWithoutAnswer: endedWithoutAnswer))
-            recording { $0.reply = TurnReply(text: preface, isFailure: false) }
+            let reply = figureCaveat(for: preface, language: config.language).map { preface + "\n\n" + $0 } ?? preface
+            messages.append(ChatMessage(role: .assistant, text: reply, endedWithoutAnswer: endedWithoutAnswer))
+            recording { $0.reply = TurnReply(text: reply, isFailure: false) }
         }
+    }
+
+    /// The turn's own sources, read back from the thread: what its tools
+    /// returned and what she said. A figure the reply states that none of them
+    /// states gets a line saying so, rather than passing as if it were read.
+    private func figureCaveat(for reply: String, language: AppLanguage) -> String? {
+        let lastUser = messages.lastIndex { $0.role == .user && !$0.isStatus }
+        let turn = messages[(lastUser.map { $0 + 1 } ?? 0)...].compactMap { message in
+            message.recall.map {
+                Turn(role: $0.role, content: $0.content, toolCalls: $0.toolCalls, toolCallID: $0.toolCallID)
+            }
+        }
+        return UnsourcedFigures.caveat(
+            for: reply, turn: turn, userWords: lastUser.map { messages[$0].text } ?? "",
+            language: language)
     }
 
     private func isCurrent(_ id: String) -> Bool {
