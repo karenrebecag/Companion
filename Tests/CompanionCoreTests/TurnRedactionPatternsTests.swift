@@ -148,3 +148,13 @@ private let mask = TurnRedaction.mask
              "vivo en código postal 06600", "código postal")
     expectEq(TurnRedaction.redact("el error code 404 salió"), "el error code 404 salió", "tres dígitos")
 }
+
+// An assignment is a secret until shown otherwise: prose almost never writes
+// `=` after a word, so a weak label keeps masking its value. Only the `:` form
+// needs the digit-or-length check, since "Passkeys: iCloud" is a sentence.
+@Test func aWeakLabelAssignmentIsAlwaysMasked() {
+    expectEq(TurnRedaction.redact("API_KEY=abcdef"), "API_KEY=\(mask)", "línea con API_KEY=")
+    expectEq(TurnRedaction.redact("token=abcdef"), "token=\(mask)", "línea con token=")
+    expectEq(TurnRedaction.redact("ver API_KEY=abcdef fin"), "ver API_KEY=\(mask) fin", "en medio de la línea")
+    expectEq(TurnRedaction.redact("ver token=abcdef fin"), "ver token=\(mask) fin", "token= en medio")
+}
