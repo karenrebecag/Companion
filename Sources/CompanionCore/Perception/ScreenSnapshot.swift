@@ -14,10 +14,14 @@ package struct SnapshotElement: Sendable, Equatable {
     package var secure: Bool
     package var enabled: Bool
     package var focused: Bool
+    /// The element's own name, never a caption; what a text-entry label may come from.
+    package var ownName: String
 
     package init(
-        id: Int, role: String, label: String, value: String?, secure: Bool, enabled: Bool, focused: Bool
+        id: Int, role: String, label: String, value: String?, secure: Bool, enabled: Bool, focused: Bool,
+        ownName: String = ""
     ) {
+        self.ownName = ownName
         self.id = id
         self.role = role
         self.label = label
@@ -34,7 +38,8 @@ package struct SnapshotElement: Sendable, Equatable {
         self.init(
             id: id, role: node.role, label: TurnRedaction.redact(words),
             value: raw?.isEmpty == true ? nil : raw,
-            secure: node.secure, enabled: node.enabled, focused: node.focused)
+            secure: node.secure, enabled: node.enabled, focused: node.focused,
+            ownName: TurnRedaction.redact(node.ownName))
     }
 }
 

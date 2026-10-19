@@ -12,7 +12,7 @@ private func node(
     enabled: Bool = true, focused: Bool = false
 ) -> ScanNode {
     ScanNode(role: role, subrole: secure ? "AXSecureTextField" : "", label: label, value: value,
-             secure: secure, enabled: enabled, focused: focused)
+             secure: secure, enabled: enabled, focused: focused, ownName: label)
 }
 
 private func snapshot(_ nodes: [ScanNode], window: String = "Notas privadas", partial: Bool = false)
@@ -97,4 +97,27 @@ private func snapshot(_ nodes: [ScanNode], window: String = "Notas privadas", pa
     let change = try #require(diff.changed.first)
     expect(change.label == "Título" && change.valueChanged && !change.enabledChanged && !change.focusedChanged,
            "solo la bandera de valor cambió")
+}
+
+// MEDIUM-1 residual (review of #352): a text-entry control's outline label
+// comes only from its own name, never from a caption; and a label that is the
+// value or the start of it is dropped, so typed text cannot leave as a label.
+@Test func aTextEntryLabelNeverComesFromACaption() {
+    let outline = ScreenOutline(snapshot: snapshot([
+        ScanNode(role: "AXTextField", subrole: "", label: "Escribe aquí", value: nil, secure: false),
+        ScanNode(role: "AXTextField", subrole: "", label: "Título", value: nil, secure: false, ownName: "Título"),
+        ScanNode(role: "AXButton", subrole: "", label: "Enviar", value: nil, secure: false),
+    ]))
+    expectEq(outline.controls.map(\.label), ["", "Título", "Enviar"],
+             "un campo sin nombre propio queda sin etiqueta; un botón sí conserva su pie")
+}
+
+@Test func aLabelThatIsTheValueOrItsStartIsDropped() {
+    let outline = ScreenOutline(snapshot: snapshot([
+        ScanNode(role: "AXTextField", subrole: "", label: "Título", value: "Título", secure: false, ownName: "Título"),
+        ScanNode(role: "AXButton", subrole: "", label: "Guardar", value: "Guardar nota", secure: false),
+        ScanNode(role: "AXButton", subrole: "", label: "Enviar", value: "Hola", secure: false),
+    ]))
+    expectEq(outline.controls.map(\.label), ["", "", "Enviar"],
+             "igual o prefijo del valor: fuera; una etiqueta distinta sí queda")
 }

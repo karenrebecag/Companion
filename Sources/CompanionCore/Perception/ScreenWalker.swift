@@ -145,7 +145,9 @@ package struct ScreenWalker<Tree: ScreenTree> {
         let value = kind.secure || details.value.isEmpty ? nil : details.value
         return ScanNode(
             role: kind.role, subrole: kind.subrole, label: label, value: value,
-            secure: kind.secure, group: group, enabled: details.enabled, focused: details.focused)
+            secure: kind.secure, group: group, enabled: details.enabled, focused: details.focused,
+            ownName: ScreenRoles.ownName(
+                title: details.title, description: details.description, placeholder: details.placeholder))
     }
 
     /// The text an unlabeled control shows, from its children. Each child read

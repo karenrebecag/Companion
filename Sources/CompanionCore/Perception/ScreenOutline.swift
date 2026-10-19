@@ -15,7 +15,7 @@ package struct OutlineControl: Sendable, Equatable {
 
     fileprivate init(_ element: SnapshotElement) {
         role = element.role
-        label = ScreenOutline.clipLabel(element.label)
+        label = ScreenOutline.safeLabel(element)
         enabled = element.enabled
         focused = element.focused
         hasValue = !(element.value ?? "").isEmpty
@@ -48,6 +48,14 @@ package struct ScreenOutline: Sendable, Equatable {
         label.count > maxLabel ? String(label.prefix(maxLabel)) + "…" : label
     }
 
+    /// A text-entry label is the field's own name only, and a label that is the
+    /// value or its start is dropped: typed text must not leave as a label.
+    fileprivate static func safeLabel(_ element: SnapshotElement) -> String {
+        let named = ScreenRoles.textEntryRoles.contains(element.role) ? element.ownName : element.label
+        if let value = element.value, !value.isEmpty, value.hasPrefix(named) { return "" }
+        return clipLabel(named)
+    }
+
     /// The controls among `elements`, capped; `cut` when the cap removed some.
     fileprivate static func project(_ elements: [SnapshotElement]) -> (controls: [OutlineControl], cut: Bool) {
         let controls = elements.filter { ScreenRoles.isControl($0.role) }
@@ -71,7 +79,7 @@ package struct ScreenOutlineDiff: Sendable, Equatable {
         self.disappeared = disappeared.controls
         self.changed = changed.prefix(ScreenScan.maxElements).map { change in
             OutlineChange(
-                role: change.after.role, label: ScreenOutline.clipLabel(change.after.label),
+                role: change.after.role, label: ScreenOutline.safeLabel(change.after),
                 valueChanged: change.before.value != change.after.value,
                 enabledChanged: change.before.enabled != change.after.enabled,
                 focusedChanged: change.before.focused != change.after.focused)

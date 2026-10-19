@@ -17,11 +17,14 @@ package struct ScanNode: Sendable, Equatable {
     package var group: Int
     package var enabled: Bool
     package var focused: Bool
+    /// The element's own name (title, description or placeholder), without a caption.
+    package var ownName: String
 
     package init(
         role: String, subrole: String, label: String, value: String?, secure: Bool, group: Int = 0,
-        enabled: Bool = true, focused: Bool = false
+        enabled: Bool = true, focused: Bool = false, ownName: String = ""
     ) {
+        self.ownName = ownName
         self.role = role
         self.subrole = subrole
         self.label = label
@@ -207,10 +210,18 @@ package enum ScreenRoles {
         title: String, description: String, placeholder: String, role: String, secure: Bool,
         caption: () -> String
     ) -> String {
-        if let own = [title, description, placeholder].first(where: { !$0.isEmpty }) { return own }
+        let own = ownName(title: title, description: description, placeholder: placeholder)
+        if !own.isEmpty { return own }
         guard !secure, isControl(role) else { return "" }
         return caption()
     }
+
+    package static func ownName(title: String, description: String, placeholder: String) -> String {
+        [title, description, placeholder].first(where: { !$0.isEmpty }) ?? ""
+    }
+
+    /// Roles where the user types: their text is content, never a caption.
+    package static let textEntryRoles: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"]
 }
 
 // MARK: - Ports
