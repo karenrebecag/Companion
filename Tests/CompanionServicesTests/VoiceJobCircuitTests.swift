@@ -23,8 +23,6 @@ import CompanionTestKit
     await testBridgeHumanizesFailure()
     await testBridgeForwardsEvents()
     await testTheEndTravelsAfterTheLastStep()
-    await testAnnouncementFlowsWhenListening()
-    await testAnnouncementWaitsForListening()
 }
 
 @MainActor func testBridgeAnnouncesSuccess() async {
@@ -113,71 +111,6 @@ import CompanionTestKit
         expect(isEnd, "fin: el fin sale después del último paso (throwing=\(jobs.throwing), \(seen.all))")
     }
 }
-
-/// Encargo termina con la sesión escuchando: el anuncio sale de inmediato
-/// como system item + response.create — la voz lo narra.
-@MainActor func testAnnouncementFlowsWhenListening() async {
-    let gated = GatedSubmitter()
-    let h = makeVoiceHarness(jobs: gated)
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("announce: listening") { h.watch.latest.state == .listening }
-
-    h.transport.yield(.functionCall(
-        name: "delegate", arguments: #"{"goal":"crear archivo"}"#, callId: "c1"))
-    await pumpUntil("announce: encargo aceptado") {
-        h.transport.sent.contains { $0.contains("function_call_output") }
-    }
-    // El turno del acuse cierra y la sesión vuelve a escuchar.
-    h.transport.yield(.responseDone)
-    await pumpUntil("announce: de vuelta en listening") {
-        h.watch.latest.state == .listening
-    }
-
-    let before = h.transport.sent.count
-    gated.finish()
-    await pumpUntil("announce: el sistema narra el cierre") {
-        h.transport.sent.dropFirst(before).contains {
-            $0.contains("conversation.item.create") && $0.contains("crear archivo")
-        }
-    }
-    let added = Array(h.transport.sent.dropFirst(before))
-    expect(hasMessage(added, type: "response.create"),
-           "announce: response.create para que la voz lo diga")
-}
-
-/// Encargo termina con el agente hablando: el anuncio espera su turno y sale
-/// al volver a listening — nunca se pisa la frase en curso.
-@MainActor func testAnnouncementWaitsForListening() async {
-    let gated = GatedSubmitter()
-    let h = makeVoiceHarness(jobs: gated)
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("cola: listening") { h.watch.latest.state == .listening }
-
-    h.transport.yield(.functionCall(
-        name: "delegate", arguments: #"{"goal":"buscar vuelos"}"#, callId: "c2"))
-    await pumpUntil("cola: encargo aceptado") {
-        h.transport.sent.contains { $0.contains("function_call_output") }
-    }
-    h.transport.yield(.agentAudioStarted)
-    await pumpUntil("cola: hablando") { h.watch.latest.state == .speaking }
-
-    let before = h.transport.sent.count
-    gated.finish()
-    // Ventana corta: si el anuncio se colara aquí, pisaría la frase.
-    try? await Task.sleep(for: .milliseconds(80))
-    expect(!h.transport.sent.dropFirst(before).contains {
-        $0.contains("conversation.item.create")
-    }, "cola: el anuncio no interrumpe al agente")
-
-    h.transport.yield(.agentAudioStopped)
-    await pumpUntil("cola: el anuncio sale al escuchar de nuevo") {
-        h.transport.sent.dropFirst(before).contains {
-            $0.contains("conversation.item.create") && $0.contains("buscar vuelos")
-        }
-    }
-}
-
-// MARK: - Fakes
 
 final class EventTextBox: @unchecked Sendable {
     private let lock = NSLock()

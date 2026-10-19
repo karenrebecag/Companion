@@ -53,8 +53,6 @@ package final class TestConfigProvider: ConfigProviding, @unchecked Sendable {
 
 /// Extend the voice harness factory to accept a provider.
 @MainActor package func makeVoiceHarnessWithProvider(_ provider: any ConfigProviding) -> VoiceHarness {
-    let transport = ScriptedVoiceTransport()
-    transport.autoEvents = [.sessionCreated, .sessionUpdated]
     let mic = ScriptedMic()
     let player = ScriptedPlayer()
     let transcriber = ScriptedTranscriber()
@@ -66,7 +64,6 @@ package final class TestConfigProvider: ConfigProviding, @unchecked Sendable {
     let thread = ScriptedThread()
     let clock = TestClock()
     let session = VoiceSession(
-        transport: transport,
         mic: mic,
         player: player,
         transcriber: transcriber,
@@ -76,13 +73,10 @@ package final class TestConfigProvider: ConfigProviding, @unchecked Sendable {
         thread: thread,
         configProvider: provider,
         reachability: TestReachability(online: true),
-        echoFreeProbe: { false },
-        micSilenceTimeout: 10,
-        now: { clock.now },
-        readyTimeout: harnessReadyTimeout)
+        now: { clock.now })
     let watch = SnapWatch(session.snapshots)
     return VoiceHarness(
-        session: session, transport: transport, mic: mic, player: player,
+        session: session, mic: mic, player: player,
         transcriber: transcriber, thread: thread, clock: clock, watch: watch,
         synth: synth, chat: chat, secrets: secrets)
 }

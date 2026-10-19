@@ -25,7 +25,6 @@ let q1SaysYes: [ChatDelta] = [
 
 final class Q1SessionVoiceBox: VoiceControlling, @unchecked Sendable {
     var session: VoiceSession?
-    func setSpeed(_ speed: Double) async {}
     func setVolume(_ volume: Double) async {}
     func start() async {}
     func advance() async {}
