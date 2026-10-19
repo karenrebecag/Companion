@@ -127,12 +127,23 @@ package final class ChatProviderClient: ChatProvider, Sendable {
         let providers = ProviderDescriptor.route(
             order: settings.providerOrder,
             catalog: catalogSource?() ?? catalog)
+        // The whole window is sent, not just the last turn, so an image from
+        // earlier in the conversation still rides along and still gates the
+        // provider. Kind, not resolution: an unreadable image must not open a
+        // text-only model to the request.
+        let carriesImages = history.suffix(max(settings.historyWindow, 0))
+            .contains { $0.attachments.contains { $0.kind == .image } }
         do {
             var lastError: ChatError?
             var attempted = false
+            var skippedForImages = false
             providerLoop: for provider in providers {
                 try Task.checkCancellation()
                 if provider.secretKey != nil, storedKey(for: provider) == nil {
+                    continue
+                }
+                if carriesImages, !ChatParameters.acceptsImages(provider.model) {
+                    skippedForImages = true
                     continue
                 }
                 if !(await probe.isAvailable(provider)) { continue }
@@ -205,8 +216,15 @@ package final class ChatProviderClient: ChatProvider, Sendable {
                     }
                 }
             }
-            continuation.finish(
-                throwing: attempted ? (lastError ?? .noProvider) : .noProvider)
+            let final: ChatError
+            if attempted {
+                final = lastError ?? .noProvider
+            } else if skippedForImages {
+                final = .imageUnsupported
+            } else {
+                final = .noProvider
+            }
+            continuation.finish(throwing: final)
         } catch is CancellationError {
             continuation.finish(throwing: CancellationError())
         } catch {

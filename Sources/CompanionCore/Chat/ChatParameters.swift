@@ -27,6 +27,16 @@ package enum ChatParameters: Sendable {
         }
     }
 
+    /// Text-only families: gpt-oss answers an image part with a 400, which the
+    /// ladder would read as a dead provider. Matched on the family, like
+    /// `acceptsTemperature`, so an aggregator's `openai/gpt-oss-…` is covered.
+    private static let textOnlyPrefixes = ["gpt-oss"]
+
+    package static func acceptsImages(_ model: String) -> Bool {
+        let name = family(of: model)
+        return !textOnlyPrefixes.contains { name.hasPrefix($0) }
+    }
+
     /// Strips the vendor prefix an aggregator adds (`openai/gpt-4o`) so the
     /// family is judged on the model, not on who is reselling it.
     private static func family(of model: String) -> String {

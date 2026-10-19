@@ -100,9 +100,15 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
     )
 
     /// Wave 15c-7: gpt-oss-120b, measured live at 0.27 s to a tool call with
-    /// a 500k tokens/min limit (spec §11). Not in `catalog`: it is the hold's
-    /// brain, not a typed-chat row. Low reasoning effort is the hold's speed
-    /// budget, not a default for every model.
+    /// a 500k tokens/min limit (spec §11). Low reasoning effort is the hold's
+    /// speed budget; the typed chat sends the same row, so it inherits it.
+    /// No `strict` (`supportsStrictTools` is OpenAI-only) and no temperature
+    /// (gpt-oss is in `ChatParameters.reasoningPrefixes`). Text only: see
+    /// `ChatParameters.acceptsImages`.
+    /// HACK: `maxTools` is the OpenAI default. The Cerebras docs we read
+    /// (inference-docs.cerebras.ai, tool use) state no per-request cap.
+    /// Upgrade trigger: the first 400 that names a tool count, then set the
+    /// measured cap here.
     package static let cerebras = ProviderDescriptor(
         id: "cerebras",
         name: "Cerebras",
@@ -162,8 +168,12 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         return copy
     }
 
+    /// Cerebras first: with its key saved it is the default typed-chat
+    /// provider, and without one `route` skips it and OpenAI answers as before.
+    /// The hold ladder drops it again (`HoldBrainCatalog.ladder`), since the
+    /// fast brain already asked it.
     package static let catalog: [ProviderDescriptor] = [
-        openAI, openRouter, ollama,
+        cerebras, openAI, openRouter, ollama,
     ]
 
     /// The ladder, in the user's order. Named ids go first in the order given;

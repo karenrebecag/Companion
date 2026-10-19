@@ -15,6 +15,9 @@ package enum ChatError: Error, Sendable, Equatable {
     case empty
     case noProvider
     case invalidKey
+    /// An image is attached and every configured provider is text-only for
+    /// this turn. Distinct from `noProvider`: the fix is a different key.
+    case imageUnsupported
 }
 
 package enum SecretStoreError: Error, Sendable, Equatable {

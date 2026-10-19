@@ -16,6 +16,7 @@
 "chat.error.unreachable" = "I could not connect. Check your network and try again.";
 "chat.error.httpStatus" = "The server answered %d. Try again.";
 "chat.error.noProvider" = "No chat provider is available.";
+"chat.error.imageUnsupported" = "The configured models cannot read images. Add an OpenAI or OpenRouter key to send this one.";
 "chat.error.empty" = "The model did not answer. Try again.";
 
 /* Jobs */

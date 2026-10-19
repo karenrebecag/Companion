@@ -43,13 +43,13 @@ import CompanionTestKit
     let noVoice = VoiceStackResolver.resolve(
         secrets: [.openAI: true, .elevenLabs: true],
         appleSpeech: true, localModel: nil, elevenLabsVoiceID: "  ")
-    expectEq(noVoice.mouth, VoiceRole(id: "gpt-4o-mini-tts", provider: "openai"),
+    expectEq(noVoice.mouth, VoiceRole(id: "avspeech", provider: "apple"),
              "elevenlabs: sin voz elegida sigue OpenAI")
 
     let noKey = VoiceStackResolver.resolve(
         secrets: [.openAI: true], appleSpeech: true, localModel: nil,
         elevenLabsVoiceID: "Gubgw9l4dtIoQA9YZHgx")
-    expectEq(noKey.mouth, VoiceRole(id: "gpt-4o-mini-tts", provider: "openai"),
+    expectEq(noKey.mouth, VoiceRole(id: "avspeech", provider: "apple"),
              "elevenlabs: sin clave sigue OpenAI")
 }
 
@@ -115,8 +115,8 @@ import CompanionTestKit
              "openai: el oído del hold sigue siendo Apple")
     expectEq(stack.brain, VoiceRole(id: "gpt-4o-mini", provider: "openai"),
              "openai: cerebro mini, no el gpt-4o del chat")
-    expectEq(stack.mouth, VoiceRole(id: "gpt-4o-mini-tts", provider: "openai"),
-             "openai: boca mini-tts")
+    expectEq(stack.mouth, VoiceRole(id: "avspeech", provider: "apple"),
+             "openai: boca cae a la voz del sistema, no a OpenAI")
     expectEq(stack.sight, VoiceRole(id: "gpt-4o-mini", provider: "openai"),
              "openai: vista mini")
 }

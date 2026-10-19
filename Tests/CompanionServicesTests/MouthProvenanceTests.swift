@@ -107,7 +107,7 @@ private func streamed(_ router: MouthRouter, _ text: String) async -> String {
     do {
         for try await chunk in router.resolved().stream(text, voice: .marin) { all.append(chunk) }
     } catch {
-        return "error"
+        return (error as? MouthError) == .systemVoice ? "system" : "error"
     }
     return String(decoding: all, as: UTF8.self)
 }
@@ -118,31 +118,28 @@ private func streamed(_ router: MouthRouter, _ text: String) async -> String {
     let dir = makeTTSTempDir("provenance-twins")
     defer { try? FileManager.default.removeItem(at: dir) }
     let eleven = SequenceMouth("eleven", failing: [2: ChatError.httpStatus(500)])
-    let openAI = SequenceMouth("openai")
+    let fallback = FakeFallback()
     let router = MouthRouter(
-        elevenLabs: eleven, openAI: openAI,
+        elevenLabs: eleven,
         secrets: ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"]), voiceID: { voice })
     let synth = SpeechSynthesis(
         cache: PhraseCache(directory: dir), fetcher: router,
-        playback: GatedFirstPlay(release: { !openAI.calls.isEmpty }),
-        fallback: FakeFallback(), voice: .marin)
+        playback: GatedFirstPlay(release: { !fallback.spoken.isEmpty }),
+        fallback: fallback, voice: .marin)
     _ = await speak(synth, "Listo.", "Listo.")
     expectEq(eleven.calls.count, 2, "M-A: las dos frases se pidieron a ElevenLabs")
-    expectEq(openAI.calls, ["Listo."], "M-A: la segunda cayó a OpenAI")
+    expectEq(fallback.spoken, ["Listo."], "M-A: la segunda cayó a la voz del sistema")
     let base = PhraseCache(directory: dir)
     expectEq(cached(base.scoped("eleven"), "Listo."), "eleven:Listo.",
              "M-A: la primera se guarda bajo ElevenLabs con su propio audio")
-    expect(cached(base.scoped("openai"), "Listo.") == nil,
-           "M-A: la de respaldo no se guarda")
 }
 
 @Test @MainActor func testAStoppedPrefetchLeavesNoMarkBehind() async {
     let dir = makeTTSTempDir("provenance-stop")
     defer { try? FileManager.default.removeItem(at: dir) }
     let eleven = SequenceMouth("eleven", failing: [2: ChatError.httpStatus(500)])
-    let openAI = SequenceMouth("openai")
     let router = MouthRouter(
-        elevenLabs: eleven, openAI: openAI,
+        elevenLabs: eleven,
         secrets: ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"]), voiceID: { voice },
         cooldown: .zero)
     let play = FakePlay(blockAt: 1)
@@ -153,7 +150,7 @@ private func streamed(_ router: MouthRouter, _ text: String) async -> String {
     await synth.enqueue("Uno.")
     await synth.enqueue("Dos.")
     await play.waitBlocked()
-    await pumpUntil("M-A: el prefetch de 'Dos.' cayó a OpenAI") { openAI.calls == ["Dos."] }
+    await pumpUntil("M-A: el prefetch de 'Dos.' se pidió y falló") { eleven.calls == ["Uno.", "Dos."] }
     await synth.stop()
 
     let next = SpeechSynthesis(
@@ -172,17 +169,16 @@ private func streamed(_ router: MouthRouter, _ text: String) async -> String {
     defer { try? FileManager.default.removeItem(at: url) }
     let clock = TestInstant()
     let eleven = SequenceMouth("eleven", failing: [1: ChatError.httpStatus(429)])
-    let openAI = SequenceMouth("openai")
     let router = MouthRouter(
-        elevenLabs: eleven, openAI: openAI,
+        elevenLabs: eleven,
         secrets: ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"]), voiceID: { voice },
         now: { clock.now })
     await Log.capturing(to: url) {
-        expectEq(await streamed(router, "Uno."), "openai:Uno.", "M-B: la primera cae a OpenAI")
-        expectEq(await streamed(router, "Dos."), "openai:Dos.", "M-B: la segunda va directo a OpenAI")
+        expectEq(await streamed(router, "Uno."), "error", "M-B: la primera falla en ElevenLabs")
+        expectEq(await streamed(router, "Dos."), "system", "M-B: la segunda va directo a la voz del sistema")
         expectEq(eleven.calls, ["Uno."], "M-B: sin segunda llamada a ElevenLabs")
         clock.advance(.seconds(59))
-        expectEq(await streamed(router, "Tres."), "openai:Tres.", "M-B: 59 s sigue en pausa")
+        expectEq(await streamed(router, "Tres."), "system", "M-B: 59 s sigue en pausa")
         clock.advance(.seconds(2))
         expectEq(await streamed(router, "Cuatro."), "eleven:Cuatro.",
                  "M-B: pasado el enfriamiento se vuelve a intentar ElevenLabs")
@@ -197,13 +193,12 @@ private func streamed(_ router: MouthRouter, _ text: String) async -> String {
     let clock = TestInstant()
     let secrets = ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"])
     let eleven = SequenceMouth("eleven", failing: [1: ChatError.httpStatus(401)])
-    let openAI = SequenceMouth("openai")
     let router = MouthRouter(
-        elevenLabs: eleven, openAI: openAI, secrets: secrets, voiceID: { voice },
+        elevenLabs: eleven, secrets: secrets, voiceID: { voice },
         now: { clock.now })
-    expectEq(await streamed(router, "Uno."), "openai:Uno.", "M-B: 401 cae a OpenAI")
+    expectEq(await streamed(router, "Uno."), "error", "M-B: el 401 falla en ElevenLabs")
     clock.advance(.seconds(3600))
-    expectEq(await streamed(router, "Dos."), "openai:Dos.", "M-B: una hora después sigue en pausa")
+    expectEq(await streamed(router, "Dos."), "system", "M-B: una hora después sigue en pausa")
     expectEq(eleven.calls, ["Uno."], "M-B: con la misma clave no se reintenta")
     secrets.values[.elevenLabs] = "sk_eleven_test_1111"
     expectEq(await streamed(router, "Tres."), "eleven:Tres.",
@@ -212,16 +207,15 @@ private func streamed(_ router: MouthRouter, _ text: String) async -> String {
 
 // MARK: - LOW-3
 
-@Test @MainActor func testAKeychainErrorIsLoggedOnceAndFallsToOpenAI() async {
+@Test @MainActor func testAKeychainErrorIsLoggedOnceAndGoesToTheSystemVoice() async {
     let url = tempLog("keychain-error")
     defer { try? FileManager.default.removeItem(at: url) }
     let eleven = SequenceMouth("eleven")
     let router = MouthRouter(
-        elevenLabs: eleven, openAI: SequenceMouth("openai"),
-        secrets: BrokenKeychain(), voiceID: { voice })
+        elevenLabs: eleven, secrets: BrokenKeychain(), voiceID: { voice })
     await Log.capturing(to: url) {
-        expectEq(await streamed(router, "Uno."), "openai:Uno.", "L3: sin llavero, OpenAI")
-        expectEq(await streamed(router, "Dos."), "openai:Dos.", "L3: y sigue en OpenAI")
+        expectEq(await streamed(router, "Uno."), "system", "L3: sin llavero, voz del sistema")
+        expectEq(await streamed(router, "Dos."), "system", "L3: y sigue en la voz del sistema")
     }
     expectEq(eleven.calls, [], "L3: ElevenLabs nunca se llama")
     let lines = logLines(url, containing: "tts: keychain read failed")

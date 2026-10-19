@@ -19,7 +19,7 @@ private let voice = "Gubgw9l4dtIoQA9YZHgx"
     defer { removeDir(dir) }
     let secrets = ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"])
     let router = MouthRouter(
-        elevenLabs: ScriptedMouth("eleven"), openAI: ScriptedMouth("openai"),
+        elevenLabs: ScriptedMouth("eleven"),
         secrets: secrets, voiceID: { voice })
     let synth = SpeechSynthesis(
         cache: PhraseCache(directory: dir), fetcher: router, playback: FakePlay(),
@@ -29,7 +29,7 @@ private let voice = "Gubgw9l4dtIoQA9YZHgx"
 
     let two = ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"])
     let router2 = MouthRouter(
-        elevenLabs: ScriptedMouth("eleven"), openAI: ScriptedMouth("openai"),
+        elevenLabs: ScriptedMouth("eleven"),
         secrets: two, voiceID: { voice })
     let synth2 = SpeechSynthesis(
         cache: PhraseCache(directory: makeTTSTempDir("router-twice")), fetcher: router2,
@@ -56,7 +56,7 @@ private final class KeyDroppingMouth: TTSFetching, @unchecked Sendable {
     defer { removeDir(dir) }
     let secrets = ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"])
     let router = MouthRouter(
-        elevenLabs: KeyDroppingMouth(secrets: secrets), openAI: ScriptedMouth("openai"),
+        elevenLabs: KeyDroppingMouth(secrets: secrets),
         secrets: secrets, voiceID: { voice })
     let synth = SpeechSynthesis(
         cache: PhraseCache(directory: dir), fetcher: router, playback: FakePlay(),
@@ -65,14 +65,14 @@ private final class KeyDroppingMouth: TTSFetching, @unchecked Sendable {
     let base = PhraseCache(directory: dir)
     expect(stored(base.scoped("eleven"), "Hola."),
            "L3: el audio de ElevenLabs se guarda bajo ElevenLabs")
-    expect(!stored(base.scoped("openai"), "Hola."),
-           "L3: nunca bajo la variante de OpenAI aunque la clave cambie a mitad")
+    expect(!stored(base.scoped(""), "Hola."),
+           "L3: la clave que cambia a mitad no cuela audio bajo la base")
 }
 
 @Test @MainActor func testTheRoutersResolvedMouthIsFixedForTheSentence() {
     let secrets = ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"])
     let router = MouthRouter(
-        elevenLabs: ScriptedMouth("eleven"), openAI: ScriptedMouth("openai"),
+        elevenLabs: ScriptedMouth("eleven"),
         secrets: secrets, voiceID: { voice })
     let mouth = router.resolved()
     expectEq(secrets.reads, 1, "L3: decidir es una lectura")
@@ -80,8 +80,8 @@ private final class KeyDroppingMouth: TTSFetching, @unchecked Sendable {
     expectEq(mouth.cacheVariant(voice: .marin), "eleven",
              "L3: la decisión no cambia con el llavero")
     expectEq(secrets.reads, 1, "L3: y la variante no vuelve a leerlo")
-    expectEq(router.resolved().cacheVariant(voice: .marin), "openai",
-             "L3: la frase siguiente sí ve el cambio")
+    expectEq(router.resolved().cacheVariant(voice: .marin), "",
+             "L3: la frase siguiente sí ve el cambio: voz del sistema, sin variante")
 }
 
 private func stored(_ cache: PhraseCache, _ phrase: String) -> Bool {

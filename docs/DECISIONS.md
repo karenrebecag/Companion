@@ -2,7 +2,7 @@
 
 ## ADR 001 — Desacoplar Hermes: absorber capacidades, no el ecosistema
 
-**Fecha:** 2026-08-20 · **Estado:** aceptada (pendiente ratificar en spec Wave 4)
+**Fecha:** 2026-08-20 · **Estado:** superseded por ADR 014 (2026-10-19); se conserva como historia
 
 ### Contexto
 
@@ -660,3 +660,34 @@ cubrir `run_shell`, que sigue con su propia carpeta de trabajo.
 
 **Disparador de revision.** Que una lectura sin permiso exfiltre algo que la
 redaccion no cubre, o que la confirmacion de archivo nuevo estorbe en uso real.
+
+## ADR 014 — Ningun proveedor es obligatorio; Cerebras es el cerebro por defecto
+
+**Fecha:** 2026-10-19 · **Estado:** aceptada · **Supersede:** ADR 001
+
+**Contexto.** ADR 001 y CLAUDE.md decian que el producto completo funciona con
+solo una clave de OpenAI. Eso ataba el chat escrito, la voz y la boca a un
+solo proveedor aunque hubiera alternativas. Karen decidio el 2026-10-19 que el
+producto no exige OpenAI.
+
+**Decision.**
+
+1. **Ningun proveedor es requisito.** Cerebras, ElevenLabs, Exa y TypeSafe son
+   opcionales. Sin ninguno quedan los caminos locales: Apple speech, AVSpeech y
+   Ollama.
+2. **Cerebras (gpt-oss-120b) es el cerebro por defecto.** El chat escrito lo
+   pide primero cuando su clave existe, y es tambien el cerebro de la voz.
+3. **ElevenLabs es la voz; AVSpeech es el respaldo.** Si ElevenLabs no esta
+   elegido o falla antes del primer audio, la frase la dice AVSpeech. Ya no hay
+   respaldo a OpenAI TTS.
+4. **OpenAI se retira por fases.** Sus roles que quedan son el tiempo real, el
+   oido del tiempo real y la vision; cada uno sale en su propio PR.
+
+**Consecuencias.**
+
+- gpt-oss no recibe imagenes, ni `strict`, ni temperature. Un turno con imagen
+  va a otro proveedor que la acepte; si no hay ninguno, el chat responde con
+  un mensaje claro (`imageUnsupported`).
+- El limite de tools de Cerebras no esta publicado en su documentacion. Queda
+  como HACK en `ProviderDescriptor.cerebras` con su disparador.
+- ADR 001 queda superseded y no se borra.

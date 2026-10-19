@@ -3,22 +3,22 @@ import Foundation
 
 /// Wave 15f-7a: picks the hold's mouth per request, so saving or deleting
 /// the ElevenLabs key in Settings takes effect on the next sentence and
-/// nothing reads the Keychain at boot.
+/// nothing reads the Keychain at boot. Without ElevenLabs the mouth is the
+/// system voice: the router answers with a mouth that fails before any audio,
+/// which `SpeechSynthesis` already speaks through AVSpeech.
 package struct MouthRouter: TTSFetching, Sendable {
     private let elevenLabs: any TTSFetching
-    private let openAI: any TTSFetching
     private let secrets: any SecretStore
     private let voiceID: @Sendable () -> String
     private let breaker: ElevenLabsBreaker
 
     package init(
-        elevenLabs: any TTSFetching, openAI: any TTSFetching,
+        elevenLabs: any TTSFetching,
         secrets: any SecretStore, voiceID: @escaping @Sendable () -> String,
         cooldown: Duration = .seconds(60),
         now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }
     ) {
         self.elevenLabs = elevenLabs
-        self.openAI = openAI
         self.secrets = secrets
         self.voiceID = voiceID
         breaker = ElevenLabsBreaker(cooldown: cooldown, now: now)
@@ -32,8 +32,8 @@ package struct MouthRouter: TTSFetching, Sendable {
     /// remembers on its own whether it fell back, so that answer travels
     /// with the stream instead of living in a table keyed by text.
     package func resolved() -> any TTSFetching {
-        guard let key = elevenLabsKey(), breaker.allows(key: key) else { return openAI }
-        return ElevenLabsFirst(primary: elevenLabs, backup: openAI, breaker: breaker, key: key)
+        guard let key = elevenLabsKey(), breaker.allows(key: key) else { return SystemVoiceMouth() }
+        return ElevenLabsFirst(primary: elevenLabs, breaker: breaker, key: key)
     }
 
     package func cacheVariant(voice: VoiceID) -> String {
@@ -74,27 +74,42 @@ package struct MouthRouter: TTSFetching, Sendable {
     }
 }
 
-/// The ElevenLabs decision for ONE sentence, with its OpenAI retry.
+/// The mouth when ElevenLabs is not chosen or is paused. It never makes a
+/// sound: the error before the first byte is what sends the sentence to the
+/// system voice.
+private struct SystemVoiceMouth: TTSFetching {
+    func fetch(_ text: String, voice: VoiceID) async throws -> Data {
+        throw MouthError.systemVoice
+    }
+
+    func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish(throwing: MouthError.systemVoice)
+        }
+    }
+}
+
+/// Not a network failure: the sentence is meant for the system voice.
+package enum MouthError: Error, Sendable, Equatable {
+    case systemVoice
+}
+
+/// The ElevenLabs decision for ONE sentence. A failure before the first byte
+/// goes to the system voice, never to another cloud voice.
 private final class ElevenLabsFirst: TTSFetching, @unchecked Sendable {
     let primary: any TTSFetching
-    let backup: any TTSFetching
     let breaker: ElevenLabsBreaker
     let key: String
-    private let lock = NSLock()
-    private var fellBack = false
 
-    init(primary: any TTSFetching, backup: any TTSFetching, breaker: ElevenLabsBreaker, key: String) {
+    init(primary: any TTSFetching, breaker: ElevenLabsBreaker, key: String) {
         self.primary = primary
-        self.backup = backup
         self.breaker = breaker
         self.key = key
     }
 
     func cacheVariant(voice: VoiceID) -> String { primary.cacheVariant(voice: voice) }
 
-    /// No OpenAI retry here on purpose: only `prewarm` fetches, and its
-    /// audio is stored under this mouth's variant with no `mayCache` check,
-    /// so a failed warm-up is just skipped.
+    /// Only `prewarm` fetches, and a failed warm-up is just skipped.
     func fetch(_ text: String, voice: VoiceID) async throws -> Data {
         try await primary.fetch(text, voice: voice)
     }
@@ -113,15 +128,11 @@ private final class ElevenLabsFirst: TTSFetching, @unchecked Sendable {
         }
     }
 
-    /// Audio the fallback voiced is heard but never stored as ElevenLabs.
-    func mayCache(_ text: String) -> Bool { lock.withLock { !fellBack } }
-
     func warm() async { await primary.warm() }
 
-    /// ElevenLabs first. If it fails before its first byte, the same
-    /// sentence goes once through OpenAI; if that fails too, the error
-    /// reaches `SpeechSynthesis`, whose own path is the system voice. Once
-    /// audio has started, a later error is not retried: switching voices
+    /// ElevenLabs only. A failure before its first byte pauses it and reaches
+    /// `SpeechSynthesis`, which speaks the sentence with the system voice.
+    /// Once audio has started, a later error is not retried: switching voices
     /// mid-sentence would be worse than the cut.
     private func relay(
         _ text: String, voice: VoiceID,
@@ -129,6 +140,7 @@ private final class ElevenLabsFirst: TTSFetching, @unchecked Sendable {
     ) async throws {
         var iterator = primary.stream(text, voice: voice).makeAsyncIterator()
         var status = 0
+        var failure: Error?
         let first: Data?
         do {
             first = try await iterator.next()
@@ -136,6 +148,7 @@ private final class ElevenLabsFirst: TTSFetching, @unchecked Sendable {
             throw CancellationError()
         } catch {
             if case ChatError.httpStatus(let code) = error { status = code }
+            failure = error
             first = nil
         }
         if let first {
@@ -144,17 +157,15 @@ private final class ElevenLabsFirst: TTSFetching, @unchecked Sendable {
             return
         }
         try Task.checkCancellation()
-        Log.app("tts: elevenlabs failed status=\(status), openai fallback")
-        lock.withLock { fellBack = true }
+        Log.app("tts: elevenlabs failed status=\(status), system voice")
         breaker.trip(status: status, key: key)
-        for try await chunk in backup.stream(text, voice: voice) {
-            continuation.yield(chunk)
-        }
+        // The ElevenLabs error itself, so the log and the caller see what failed.
+        throw failure ?? ChatError.empty
     }
 }
 
 /// Code review 2026-09-25 (MEDIUM-B): ElevenLabs failing before its first
-/// byte makes every sentence pay a dead request before OpenAI. One failure
+/// byte makes every sentence pay a dead request before the system voice. One failure
 /// pauses it for `cooldown`; a 401 means the key itself is bad, so it stays
 /// paused until a different key is saved (or the app restarts).
 private final class ElevenLabsBreaker: @unchecked Sendable {

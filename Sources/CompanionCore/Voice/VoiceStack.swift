@@ -86,8 +86,6 @@ package enum VoiceStackResolver: Sendable {
         if ElevenLabsMouth.isChosen(
             hasKey: secrets[.elevenLabs] == true, voiceID: elevenLabsVoiceID) {
             mouth = VoiceRole(id: "elevenlabs/\(ElevenLabsMouth.model)", provider: "elevenlabs")
-        } else if openAI {
-            mouth = VoiceRole(id: "gpt-4o-mini-tts", provider: "openai")
         } else if brain != nil {
             mouth = VoiceRole(id: "avspeech", provider: "apple")
         } else {

@@ -40,7 +40,7 @@ private func elevenURL(_ voice: String) -> String {
     testAnUnknownPresetChoiceChangesNothing()
     await testTheElevenLabsSectionCopy()
     await testTheSampleGoesThroughTheRouterWithTheChosenVoice()
-    await testWithoutAKeyTheSampleGoesThroughOpenAI()
+    await testWithoutAKeyTheSampleNeverGoesThroughOpenAI()
 }
 
 /// §8.3: the five candidates plus the old default, Karen's pick first.
@@ -267,7 +267,7 @@ private func elevenURL(_ voice: String) -> String {
         elevenLabs: ElevenLabsTTSClient(
             secrets: secrets, transport: transport, language: .es,
             voiceID: { ElevenLabsVoicePreference.voiceID }),
-        openAI: openAI, secrets: secrets,
+        secrets: secrets,
         voiceID: { ElevenLabsVoicePreference.voiceID })
     let preview = VoicePreview(
         sampler: TTSVoiceSampler(fetcher: openAI, playback: FakePlay()),
@@ -290,7 +290,7 @@ private func elevenURL(_ voice: String) -> String {
     expectEq(openAI.calls, [], "muestra: OpenAI no se usa con clave y voz")
 }
 
-@MainActor func testWithoutAKeyTheSampleGoesThroughOpenAI() async {
+@MainActor func testWithoutAKeyTheSampleNeverGoesThroughOpenAI() async {
     let restore = isolatedPreference("nokey")
     defer { restore() }
     let transport = ScriptedTransport()
@@ -300,14 +300,13 @@ private func elevenURL(_ voice: String) -> String {
         elevenLabs: ElevenLabsTTSClient(
             secrets: secrets, transport: transport, language: .es,
             voiceID: { ElevenLabsVoicePreference.voiceID }),
-        openAI: openAI, secrets: secrets,
+        secrets: secrets,
         voiceID: { ElevenLabsVoicePreference.voiceID })
     let preview = VoicePreview(
         sampler: TTSVoiceSampler(fetcher: openAI, playback: FakePlay()),
         mouth: TTSVoiceSampler(fetcher: router, playback: FakePlay()))
     preview.playMouth(.cedar)
     await pumpUntil("muestra sin clave: termina") { !preview.playingMouth }
-    expectEq(openAI.calls, [VoicePreview.sampleText], "muestra sin clave: suena por OpenAI")
+    expectEq(openAI.calls, [], "muestra sin clave: la boca no usa OpenAI")
     expect(transport.requests.isEmpty, "muestra sin clave: ninguna petición a ElevenLabs")
-    expect(preview.errorText == nil, "muestra sin clave: sin error")
 }
