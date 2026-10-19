@@ -428,3 +428,25 @@ package struct ScriptedDecision: DecisionProvider {
         body(question)
     }
 }
+
+/// A `ScriptedDecision` that claims one round trip per batch, counting the
+/// batches so a test can tell the one-request cascade from the sequential one.
+package final class BatchingDecision: DecisionProvider, @unchecked Sendable {
+    private let inner: ScriptedDecision
+    private let lock = NSLock()
+    private var _batches: [[DecisionQuestion]] = []
+    package var batches: [[DecisionQuestion]] { lock.withLock { _batches } }
+
+    package init(_ inner: ScriptedDecision) { self.inner = inner }
+
+    package var answersInOneRequest: Bool { true }
+
+    package func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {
+        await answer([question]).first ?? nil
+    }
+
+    package func answer(_ questions: [DecisionQuestion]) async -> [DecisionAnswer?] {
+        lock.withLock { _batches.append(questions) }
+        return questions.map { inner.body($0) }
+    }
+}
