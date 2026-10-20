@@ -1,0 +1,1 @@
+- **Companion no escribe en un diálogo que no pediste (2026-10-19).** Si un diálogo u hoja (por ejemplo "Nueva carpeta") tiene el foco cuando pides escribir en una nota, Companion no teclea nada y te dice qué diálogo está abierto, en vez de escribir ahí y decir "escrito". Cuando sí pides escribir en un diálogo (Guardar, renombrar), escribe y nombra dónde.
