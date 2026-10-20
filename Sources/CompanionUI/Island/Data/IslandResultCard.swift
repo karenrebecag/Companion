@@ -41,7 +41,11 @@ struct IslandResultCard<Body: View>: View {
                 DocSources(links: links, onOpen: onOpenURL)
                     .padding(.top, links.chips.isEmpty ? Space.none : DocCardMetrics.sourcesLift)
                 if let onContinue {
-                    DocChip(scale: .action, action: onContinue) { Text(Localized.string("island.result.continue")) }
+                    // Karen's first UI rule: actions sit on the right, the highest in rank last.
+                    HStack(spacing: Space.none) {
+                        Spacer(minLength: Space.none)
+                        DocChip(scale: .action, action: onContinue) { Text(Localized.string("island.result.continue")) }
+                    }
                 }
             }
         }

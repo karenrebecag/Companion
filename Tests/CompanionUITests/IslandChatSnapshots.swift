@@ -140,6 +140,21 @@ private struct ChatShot: View {
                 .padding(24)),
             scheme: scheme, size: size, to: out, "isla-docCard-referencia-\(scheme == .dark ? "dark" : "light")")
     }
+    // One short paragraph: the action row must still sit on the right (Karen's first UI rule).
+    let short = AnswerBlocks.blocks(from: "Ese texto es el mensaje de bienvenida del terminal que indica la última vez que se abrió la sesión.")
+    for scheme in [ColorScheme.light, .dark] {
+        try await saveLive(
+            AnyView(IslandResultCard(
+                title: nil, blocks: short, links: .none,
+                maxHeight: IslandChrome.columnCap, onOpenURL: { _ in }, onDismiss: {}, onContinue: {}) { EmptyView() }
+                .padding(.horizontal, IslandChrome.docShellMargin)
+                .padding(.vertical, IslandChrome.shellBottom)
+                .background(RoundedRectangle(cornerRadius: NotchShape.openRadius).fill(IslandInk.panel))
+                .environment(\.colorScheme, .dark)
+                .padding(24)),
+            scheme: scheme, size: CGSize(width: size.width, height: 260), to: out,
+            "isla-docCard-corto-\(scheme == .dark ? "dark" : "light")")
+    }
     // Long content: the bottom fade where more text waits, and the code folded to its first lines.
     let filler = String(repeating: "Una frase de relleno para llenar la columna entera y forzar el desvanecido. ", count: 4)
     let code = (1 ... 30).map { "let line\($0) = \($0)" }.joined(separator: "\n")
