@@ -12,6 +12,7 @@ import Testing
     testSheetWriteAppendsActAndOverwritesAreCritical()
     testOpenURLActsWithoutAskingForAnyHost()
     testHandsRiseWhenDestructiveOrInATerminal()
+    testRememberAsksOnlyInATaintedTurn()
     testShellBridgeAndUnknownAreCritical()
     testShellReadsActAndTheRestAsk()
     testAppToolsNeedConfirmation()
@@ -75,6 +76,11 @@ func testOpenURLActsWithoutAskingForAnyHost() {
     expectEq(band("open_url", [:], ActionFacts(hostSaid: true)), .act, "host dicho")
     expectEq(band("open_url", [:], ActionFacts(hostSaid: false)), .act, "host que la usuaria no dijo: abrir es navegar")
     expectEq(band("open_url"), .act, "sin hechos: actua")
+}
+
+func testRememberAsksOnlyInATaintedTurn() {
+    expectEq(band("remember"), .act, "turno limpio: actua")
+    expectEq(band("remember", [:], ActionFacts(tainted: true)), .critical, "tras leer una pagina: pregunta")
 }
 
 func testHandsRiseWhenDestructiveOrInATerminal() {

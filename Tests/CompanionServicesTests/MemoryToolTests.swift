@@ -61,3 +61,14 @@ private func store() -> (FileMemoryStore, URL) {
         expect(false, "memoria: un dato normal sí se guarda")
     }
 }
+
+@Test func rememberAsksTheOwnerOnlyAfterATaintedRead() {
+    let (memory, dir) = store()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let taint = TurnTaint()
+    let runner = MemoryToolRunner(notes: memory, taint: taint)
+    let call = ToolCallRef(id: "1", name: "remember", arguments: #"{"fact":"prefiere respuestas cortas"}"#)
+    expect(runner.approval(for: call, said: "") == nil, "remember: turno limpio, sin hoja")
+    taint.mark()
+    expect(runner.approval(for: call, said: "") != nil, "remember: tras leer una pagina pide la hoja")
+}

@@ -230,6 +230,18 @@ package final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         "Bash(rm -rf $HOME*)",
         "Bash(curl * | sh*)", "Bash(curl * | bash*)", "Bash(wget * | sh*)", "Bash(wget * | bash*)",
         "Bash(osascript *)",
+    ] + sensitivePaths.flatMap { path in
+        ["Read(\(path)/**)", "Edit(\(path)/**)", "Bash(* \(path)*)", "Bash(* $HOME\(path.dropFirst())*)"]
+    }
+
+    /// Credentials and Companion's own data (memory is read back into every
+    /// prompt, so an edit there outlives the job). `~/` is Claude Code's
+    /// home-relative path syntax for Read/Edit rules; Bash rules match the
+    /// command text, so `~` and `$HOME` spellings are both listed. Not covered:
+    /// a path built at run time inside a script.
+    static let sensitivePaths = [
+        "~/.ssh", "~/.aws", "~/.gnupg", "~/Library/Keychains",
+        "~/Library/Application Support/Companion",
     ]
 
     /// `auto`: Claude Code's classifier approves what is safe and refuses
