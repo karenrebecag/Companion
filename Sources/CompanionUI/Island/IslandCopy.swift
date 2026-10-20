@@ -47,7 +47,6 @@ enum IslandCopy {
         case .approvalWithdrawn: Localized.string("island.approvalWithdrawn.title")
         case .ownerCheck: Localized.string("island.ownerCheck")
         case .chatError(let text): text
-        case .receipt(let receipt): receipt.lines.last ?? ""
         }
     }
 

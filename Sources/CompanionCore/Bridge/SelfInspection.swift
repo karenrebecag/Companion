@@ -225,7 +225,7 @@ extension IslandState.Line {
              .dropZones, .replyCut, .approvalWithdrawn, .ownerCheck:
             false
         case .acting, .job, .dictating, .dictated, .dictationResult, .updateAvailable,
-             .followUp, .connectApp, .signInApp, .chatError, .receipt:
+             .followUp, .connectApp, .signInApp, .chatError:
             true
         }
     }
@@ -239,7 +239,6 @@ extension IslandState.Line {
         case .dictationResult(let app, let text): [app.count, text.value.count]
         case .updateAvailable(let tag): [tag.count]
         case .connectApp(let slug, let name), .signInApp(let slug, let name): [slug.count, name.count]
-        case .receipt(let receipt): receipt.lines.map(\.count)
         case .none, .holdHint, .keyBlocked, .pending, .thinking, .speaking, .completed,
              .couldntHear, .permission, .failure, .pasting, .transcriptsDebug, .cancelled,
              .dropZones, .replyCut, .approvalWithdrawn, .ownerCheck:

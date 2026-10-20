@@ -57,20 +57,22 @@ import Testing
         expect(en.contains("never an absolute path"),
                "prompt en voz=\(voice): prohíbe rutas absolutas")
     }
-    // Security review: hiding the mechanism must never hide the effect. The
-    // rule says so itself, and actRule's "say what you did" still stands.
+    // Hiding the mechanism must never hide an effect she cannot see; one she
+    // watches happen on screen is not confirmed.
     let acting = ChatPrompt.system(ownerFirstName: "", delegateEnabled: true,
                                    parentToolsEnabled: true, language: .es)
-    expect(acting.contains("El efecto se dice siempre"),
-           "prompt: el efecto nunca se calla")
-    expect(acting.contains("di qué hiciste"),
-           "prompt: la regla nueva no borra el actRule")
+    expect(acting.contains("Un efecto que ella no ve se dice siempre"),
+           "prompt: el efecto invisible nunca se calla")
+    expect(acting.contains("termina el turno sin texto"),
+           "prompt: tras una acción visible exitosa no se narra")
+    expect(!acting.contains("di qué hiciste"), "prompt: ya no manda confirmar lo que ella ve")
     let actingEn = ChatPrompt.system(ownerFirstName: "", delegateEnabled: true,
                                      parentToolsEnabled: true, language: .en)
-    expect(actingEn.contains("The effect is always stated"),
-           "prompt en: el efecto nunca se calla")
-    expect(actingEn.contains("say what you did"),
-           "prompt en: la regla nueva no borra el actRule")
+    expect(actingEn.contains("An effect she cannot see is always stated"),
+           "prompt en: el efecto invisible nunca se calla")
+    expect(actingEn.contains("end the turn with no text"),
+           "prompt en: tras una acción visible exitosa no se narra")
+    expect(!actingEn.contains("say what you did"), "prompt en: ya no manda confirmar lo que ella ve")
 }
 
 @MainActor func testPromptEmptyOwner() {

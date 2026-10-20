@@ -72,10 +72,6 @@
 "settings.you.city" = "Your city";
 "settings.you.city.placeholder" = "City, Country";
 "settings.you.city.subtitle" = "What \"near me\" means. Left empty, Companion asks your Mac for the city, and only when you ask for something nearby.";
-"island.receipt.title" = "Receipt";
-"island.receipt.check" = "Done and verified";
-"island.receipt.done" = "Done";
-"island.receipt.verified" = "Verified";
 "island.result.title" = "Result";
 "island.result.status.working" = "Working";
 "island.result.status.done" = "Done";

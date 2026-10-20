@@ -38,7 +38,6 @@ import Testing
 
 @Test @MainActor func k4R2HoverRuleMatchesTheReducer() {
     let approval = ApprovalRequest(requestId: "1", toolName: "look", summary: "mira", inputJSON: "{}")
-    let receipt = ActionReceipt(lines: ["hecho"])!
     let answer = Card(payload: .gallery(GalleryBlock(images: [])), source: .tool)
     let pairs: [(SessionCard, IslandState.Line?)] = [
         (.couldntHear, .couldntHear),
@@ -50,7 +49,6 @@ import Testing
         (.holdHint, .holdHint),
         (.connectApp(slug: "slack", name: "Slack"), .connectApp(slug: "slack", name: "Slack")),
         (.signInApp(slug: "slack", name: "Slack"), .signInApp(slug: "slack", name: "Slack")),
-        (.receipt(receipt), .receipt(receipt)),
         (.replyCut, .replyCut),
         (.approvalWithdrawn, .approvalWithdrawn),
     ]

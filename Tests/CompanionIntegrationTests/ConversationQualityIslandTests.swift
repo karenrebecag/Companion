@@ -72,7 +72,7 @@ func facts(_ effects: [SessionEffect]) -> [IslandEvent] {
     log.record(.shown(.result))
     log.record(.shown(.result))
     expectEq(log.pending, [.shown(.result)], "registro: el mismo hecho seguido no se repite")
-    for kind in [IslandCardKind.notice, .receipt, .answer, .result, .notice] { log.record(.shown(kind)) }
+    for kind in [IslandCardKind.notice, .answer, .result, .notice] { log.record(.shown(kind)) }
     expectEq(log.pending.count, IslandEventLog.capacity, "registro: acotado")
     expectEq(IslandEventLog.capacity, ContextBlock.Caps.islandEvents, "registro: lo que se guarda es lo que se cuenta")
     expectEq(log.pending.last, .shown(.notice), "registro: gana lo más reciente")
@@ -94,10 +94,10 @@ func facts(_ effects: [SessionEffect]) -> [IslandEvent] {
         clipboard: ClipboardSummary(kind: .text, preview: huge),
         screenSummary: huge, screenSnippets: Array(repeating: ScreenSnippet(app: huge, text: huge), count: 12),
         focusedWindow: huge, location: UserLocation(city: "Cuernavaca", country: "México"),
-        islandEvents: [.shown(.result), .closed(.notice), .ignored(.receipt), .interrupted])
+        islandEvents: [.shown(.result), .closed(.notice), .ignored(.answer), .interrupted])
     let block = ContextBlock.render(ctx, language: .en)
     for line in ["card shown: result", "card closed by the user: notice",
-                 "card left on its own, unattended: receipt", "the user interrupted"] {
+                 "card left on its own, unattended: answer", "the user interrupted"] {
         expect(block.contains(line), "límite: «\(line)» viaja aunque se recorte lo demás")
     }
 }
@@ -132,22 +132,22 @@ func facts(_ effects: [SessionEffect]) -> [IslandEvent] {
 // MARK: - The context block
 
 @Test func testTheBlockTellsTheLatestEventsInShortNeutralWords() {
-    let events: [IslandEvent] = [.shown(.result), .closed(.notice), .ignored(.receipt), .interrupted]
+    let events: [IslandEvent] = [.shown(.result), .closed(.notice), .ignored(.answer), .interrupted]
     let es = ContextBlock.render(TurnContext(source: .voice, islandEvents: events), language: .es)
     for line in ["tarjeta mostrada: resultado", "tarjeta cerrada por la usuaria: aviso",
-                 "tarjeta que se fue sola sin atender: recibo", "la usuaria interrumpió"] {
+                 "tarjeta que se fue sola sin atender: respuesta", "la usuaria interrumpió"] {
         expect(es.contains(line), "isla (es): «\(line)»")
     }
     let en = ContextBlock.render(TurnContext(source: .typed, islandEvents: events), language: .en)
     for line in ["card shown: result", "card closed by the user: notice",
-                 "card left on its own, unattended: receipt", "the user interrupted"] {
+                 "card left on its own, unattended: answer", "the user interrupted"] {
         expect(en.contains(line), "isla (en): «\(line)»")
     }
     expect(es.contains("<island_events>") && es.contains("</island_events>"), "isla: dentro de su tag")
 }
 
 @Test func testOnlyTheLatestFewEventsTravelAndNoneMeansNoTag() {
-    let many: [IslandEvent] = [.shown(.result), .shown(.notice), .shown(.receipt), .shown(.answer),
+    let many: [IslandEvent] = [.shown(.result), .shown(.notice), .closed(.notice), .shown(.answer),
                                .closed(.result), .interrupted]
     let block = ContextBlock.render(TurnContext(source: .voice, islandEvents: many), language: .en)
     let lines = block.split(separator: "\n").filter { $0.hasPrefix("    - ") && !$0.contains("[") }

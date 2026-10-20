@@ -445,21 +445,6 @@ private func dictationCard() -> SessionMachine {
 
 // Round 5.
 
-@Test func k1R5TheReceiptSurvivesAJobDuringCompleted() {
-    let receipt = ActionReceipt(lines: ["Abrí Safari."])!
-    var machine = SessionMachine()
-    _ = machine.handle(.typedSubmitted)
-    _ = machine.handle(.parentActing(targets: ["Safari"]))
-    _ = machine.handle(.receipt(receipt))
-    _ = machine.handle(.parentActed)
-    _ = machine.handle(.typedReplyFinished)
-    _ = machine.handle(.job(.started(goal: "ordenar")))
-    _ = machine.handle(.jobFinished(ok: true))
-    _ = machine.handle(.completedTimerExpired)
-    expectEq(machine.projection.notice, .receipt(receipt),
-             "K1: el recibo del turno sale aunque un encargo corriera en Completed")
-}
-
 @Test func k1R5OnlyAnOpenIslandPlaysTheBridgeOut() {
     expect(!SessionKind.processing(.completed).isUsersTurn,
            "K1: Completed es asentarse, no un turno: no pausa el puente")

@@ -56,7 +56,6 @@ package struct IslandState: Sendable, Equatable {
         /// failure line covers; the sentence rides along.
         case chatError(String)
         /// 16h-3: what the turn did and could prove.
-        case receipt(ActionReceipt)
         /// The network cut the reply mid-sentence; shown only while the voice is live.
         case replyCut
         /// A cut ended the wait on a permission; says why nothing happened.
@@ -287,7 +286,6 @@ package struct IslandState: Sendable, Equatable {
             IslandState(size: .card, line: .signInApp(slug: slug, name: name))
         case .permission(let failure): IslandState(size: .card, line: .permission(failure))
         case .failure(let failure): IslandState(size: .card, line: .failure(failure))
-        case .receipt(let receipt): IslandState(size: .docCard, line: .receipt(receipt))
         case .replyCut: IslandState(size: .card, line: .replyCut)
         case .approvalWithdrawn: IslandState(size: .card, line: .approvalWithdrawn)
         // While the voice session lives the microphone is taken: the pebble

@@ -37,13 +37,6 @@ import Testing
              "relativa se abre desde la carpeta de inicio, como open_file")
 }
 
-@Test func aReceiptNamesAFileByItsNameNeverItsPath() {
-    let outcome = ParentToolOutcome(ok: true, output: "", target: "Desktop/Swift_vs_TypeScript.md")
-    let entry = ReceiptProof.entry(tool: "open_file", outcome: outcome, language: .es)
-    expectEq(entry?.text, "Abrí Swift_vs_TypeScript.md.", "el recibo dice el nombre, no la ruta")
-    expectEq(entry?.file?.name, "Swift_vs_TypeScript.md", "y el chip lleva el mismo nombre")
-}
-
 // A chip's click is a file the reader may open. Programs and scripts are only
 // revealed in Finder, and a protected path has no action at all.
 @Test func aLauncherOrScriptIsRevealedNeverOpened() {

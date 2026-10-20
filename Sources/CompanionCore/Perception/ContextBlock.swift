@@ -294,8 +294,6 @@ package enum ContextBlock {
         case (.result, .es): "resultado"
         case (.notice, .en): "notice"
         case (.notice, .es): "aviso"
-        case (.receipt, .en): "receipt"
-        case (.receipt, .es): "recibo"
         case (.answer, .en): "answer"
         case (.answer, .es): "respuesta"
         }

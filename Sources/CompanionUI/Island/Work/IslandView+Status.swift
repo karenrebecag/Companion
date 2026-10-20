@@ -9,9 +9,6 @@ extension IslandView {
         if state.line == .dropZones {
             IslandDropZones(zone: geometry.dropZone)
                 .modifier(contentSlot(.card))
-        } else if case .receipt(let receipt) = state.line {
-            receiptCard(receipt)
-                .modifier(contentSlot(.card))
         } else if Self.showsCompletedCard(state) {
             completedCard()
                 .modifier(contentSlot(.card))

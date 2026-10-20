@@ -21,9 +21,9 @@ extension ClassicRuntime {
         var deniedSheets: [String] = []
         /// Every sheet this round showed, however it ended.
         var shownSheets: [String] = []
-        /// Set when every call was a quick action that succeeded: the reply
-        /// that follows may only restate this receipt, so it is not spoken.
-        var quickReceipt: ActionReceipt?
+        /// Set when every call was a quick action that succeeded: she watched
+        /// it happen, so the reply that follows is not spoken.
+        var quiet = false
     }
 
     /// Runs the round and folds what it learnt into the turn that owns
@@ -44,7 +44,7 @@ extension ClassicRuntime {
         mouth.unverifiedTyped = round.unverified
         mouth.effectLines += round.effectLines
         if !round.shownSheets.isEmpty { mouth.sheetShown = true }
-        mouth.quickReceipt = mouth.sheetShown ? nil : round.quickReceipt
+        mouth.quiet = !mouth.sheetShown && round.quiet
         if round.sawCard { mouth.cardThisTurn = true }
     }
 
@@ -125,20 +125,11 @@ extension ClassicRuntime {
             .filter { ParentTool(rawValue: $0.call.name)?.changesSomething == true }
             .map { ParentToolCopy.status($0.call.name, $0.outcome, language) }
         for card in cards { events?.yield(.job(.card(card))) }
-        // The island's receipt is the effect lines that HAVE proof; an
-        // unread typing is an attempt and gets no check (16h-3).
-        // `late` are typings an earlier round left waiting and a read here
-        // confirmed: proven, and read back.
-        let proven = proof.runs.compactMap {
-            ReceiptProof.entry(tool: $0.call.name, outcome: $0.outcome, language: language)
-        } + proof.late.map { ReceiptLine(text: $0, verified: true) }
-        let receipt = ActionReceipt(entries: proven)
-        if let receipt { events?.yield(.receipt(receipt)) }
         // Quick actions are confirmed here, at toolDone, not after the brain's
-        // sentence: the earcon and the island line are the whole feedback.
+        // sentence: the earcon is the whole feedback, the screen shows the rest.
         // A sheet means the user was asked and is waiting on the answer: the
         // spoken close is theirs to hear, so only sheetless rounds qualify.
-        let quick = receipt != nil && shownSheets.isEmpty && runs.count == calls.count && runs.allSatisfy {
+        let quick = !runs.isEmpty && shownSheets.isEmpty && runs.count == calls.count && runs.allSatisfy {
             ParentTool(rawValue: $0.call.name)?.isQuickAction == true && $0.outcome.ok
         }
         if quick {
@@ -148,7 +139,7 @@ extension ClassicRuntime {
         return ActedRound(
             turns: turns, effectLines: effects, sawCard: !cards.isEmpty, unverified: proof.unverified,
             deniedSheets: deniedSheets, shownSheets: shownSheets,
-            quickReceipt: quick ? receipt : nil)
+            quiet: quick)
     }
 }
 

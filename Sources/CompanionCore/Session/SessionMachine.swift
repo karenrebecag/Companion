@@ -65,11 +65,6 @@ package struct SessionMachine: Sendable, Equatable {
     var finishedJobs: [JobID] = []
     /// Which job asked each queued request; untagged requests have none.
     var approvalOwners: [String: JobID] = [:]
-    /// 16h-3: what the TURN has done and proved so far. Rounds of hands add to
-    /// it; only a new turn (`openTurn`) drops it. Published as a notice when
-    /// the chrome reaches rest, never mid-step.
-    var turnReceipt: ActionReceipt?
-    var receiptPublished = false
     /// P1: the user's wait before passive (0: never) and the arm now running.
     var passiveAfter: TimeInterval = 0
     var passiveArm = 0
@@ -289,9 +284,6 @@ package struct SessionMachine: Sendable, Equatable {
             projection.cards = [.couldntHear]
             projection.kind = restingKind()
             effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
-        case .receipt(let receipt):
-            turnReceipt = turnReceipt?.merging(receipt) ?? receipt
-            receiptPublished = false
         case .connectAppSuggested(let slug, let name):
             // A nudge, not a transition: whatever the turn is doing keeps
             // the kind; the card offers the way to the Apps page and
@@ -320,14 +312,12 @@ package struct SessionMachine: Sendable, Equatable {
             if let notice = projection.notice, Self.fades(notice), armedFor == notice {
                 projection.notice = nil
                 noticeHeld = false
-                seen(notice)
                 if let kind = notice.islandKind { effects.append(.islandEvent(.ignored(kind))) }
             }
         case .noticeDismissed:
             if let notice = projection.notice, Self.fades(notice) {
                 projection.notice = nil
                 noticeHeld = false
-                seen(notice)
                 if let kind = notice.islandKind { effects.append(.islandEvent(.closed(kind))) }
             }
         case .pendingTimedOut:
@@ -433,7 +423,6 @@ package struct SessionMachine: Sendable, Equatable {
             effects.append(.scheduleVoiceIdleExpiry(Self.voiceIdleTimeout))
         }
         effects += settleOnceUnblocked(wasCompleted: before == .processing(.completed), wasBlocked: wasBlocked)
-        effects += publishReceipt()
         effects = pausingHeldNotice(effects)
         for card in projection.cards {
             if let kind = card.islandKind { effects.append(.islandEvent(.shown(kind))) }
@@ -447,7 +436,6 @@ package struct SessionMachine: Sendable, Equatable {
     static func fades(_ notice: SessionCard) -> Bool {
         if case .connectApp = notice { return true }
         if case .signInApp = notice { return true }
-        if case .receipt = notice { return true }
         if case .replyCut = notice { return true }
         if case .approvalWithdrawn = notice { return true }
         return notice == .couldntHear || notice == .holdHint
@@ -458,7 +446,6 @@ package struct SessionMachine: Sendable, Equatable {
     mutating func openTurn() {
         replyKind = nil
         begin()
-        turnReceipt = nil
         projection.job?.behindTurn = true
     }
 
@@ -466,21 +453,9 @@ package struct SessionMachine: Sendable, Equatable {
     /// over.
     mutating func begin() {
         projection.interruption = nil
-        // At Idle the turn is over: lines held behind a permanent notice belong
-        // to it, not to whatever starts now (a job, a bridge step).
-        var clearsReceipt = false
-        if case .receipt? = projection.notice { clearsReceipt = true }
-        // Completed is over only while a notice holds it there: any other
-        // Completed still has its receipt to publish when it settles.
-        let turnIsOver = projection.kind == .idle
-            || (projection.kind == .processing(.completed) && projection.notice != nil)
-        if turnIsOver, !clearsReceipt { turnReceipt = nil }
         projection.notice = nil
         noticeHeld = false
         answerOpen = false
-        // Whatever receipt was on screen is gone with it; the turn's lines
-        // survive and come back at the next rest.
-        receiptPublished = false
         projection.partial = nil
         projection.dictation = nil
         projection.dictatedText = nil

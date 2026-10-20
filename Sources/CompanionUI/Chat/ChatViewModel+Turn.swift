@@ -103,6 +103,11 @@ extension ChatViewModel {
                 streaming = ""
                 if let handoff { recording { $0.handoffGoalLength = handoff.goal.count } }
                 guard let parentTools, !calls.isEmpty else {
+                    if preface.isEmpty, handoff == nil, turnActedAndAllSucceeded() {
+                        // She watched it happen: silence is the answer.
+                        log("chat: turn ended quietly after a visible action")
+                        break
+                    }
                     if preface.isEmpty, handoff == nil {
                         log("chat: round returned neither text nor calls")
                         await commit(
@@ -260,6 +265,18 @@ extension ChatViewModel {
         return hit.prose.isEmpty ? fence : hit.prose + "\n\n" + fence
     }
 
+    /// The turn changed something on her screen and no step failed. Reads and
+    /// failures are not it: a read has a result she has not seen, and a
+    /// failure must still be told.
+    private func turnActedAndAllSucceeded() -> Bool {
+        let start = messages.lastIndex { $0.role == .user && !$0.isStatus }.map { $0 + 1 } ?? 0
+        let turn = messages[start...]
+        guard !turn.contains(where: \.stepFailed) else { return false }
+        return turn.contains { message in
+            message.recall?.toolCalls.contains { ParentTool(rawValue: $0.name)?.changesSomething == true } == true
+        }
+    }
+
     /// What the turn's tool results said, in the words the thread shows.
     private func turnAttempts() -> [String] {
         let start = messages.lastIndex { $0.role == .user && !$0.isStatus }.map { $0 + 1 } ?? 0
@@ -293,7 +310,6 @@ extension ChatViewModel {
         // the answers to one assistant turn arrive together, and an assistant
         // turn wedged between them is a rejected request.
         var cards: [Card] = []
-        var proven: [ReceiptLine] = []
         // Before the first call runs: the judge and the kept "siempre" settle
         // what they can, and the rest of the step's sheets are asked together.
         let plan = await planStep(calls, said: said, tools: tools)
@@ -359,17 +375,10 @@ extension ChatViewModel {
             }
             answers[index] = outcome
             if let card = outcome.card, reused == nil { cards.append(card) }
-            if let line = ReceiptProof.entry(tool: call.name, outcome: outcome, language: config.language) {
-                proven.append(line)
-            }
         }
         // A clear landed mid-round: the cards and the save belong to a chat
         // that is gone.
         guard historyEpoch == epoch else { return }
-        if let receipt = ActionReceipt(entries: proven) {
-            session.send(.receipt(receipt))
-            recording { $0.receipts += receipt.lines }
-        }
         for card in cards {
             recording { $0.cards.append(TurnCardMark(kind: Self.kind(of: card))) }
             messages.append(ChatMessage(
