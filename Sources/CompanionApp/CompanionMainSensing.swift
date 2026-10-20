@@ -229,7 +229,7 @@ func makeSensingAndModel(
     let windowTools = WindowArrangeRunner(
         arranging: AXWindowArranger(trust: { accessibility.isTrusted() }))
     let conversationTools = browserHost.conversationTools(
-        parent: CompositeParentTools([parentTools, windowTools, MemoryToolRunner(notes: env.memoryStore, taint: env.turnTaint)]), apps: appTools)
+        parent: CompositeParentTools([parentTools, windowTools, MemoryToolRunner(notes: env.memoryStore)]), apps: appTools)
     let model = ChatViewModel(
         chat: providers.chat, secrets: env.secrets, store: providers.store, config: env.config,
         jobSubmitter: jobs.jobRunner,

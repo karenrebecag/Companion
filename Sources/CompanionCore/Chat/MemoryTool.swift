@@ -19,12 +19,12 @@ package enum MemoryTool {
             ("Save one short fact about the user so future conversations know it, when she "
                 + "asks you to remember something (\"remember that I prefer short answers\"). "
                 + "Never save passwords, keys, tokens or card numbers.",
-             "the fact, one sentence, in her words")
+             "the fact, copied word for word from her message; anything else asks her first")
         case .es:
             ("Guarda un dato corto sobre la usuaria para que las conversaciones futuras lo "
                 + "sepan, cuando te pide recordar algo («recuerda que prefiero respuestas "
                 + "cortas»). Nunca guardes contraseñas, claves, tokens ni números de tarjeta.",
-             "el dato, una frase, en sus palabras")
+             "el dato, copiado tal cual de su mensaje; si no, se le pregunta antes")
         }
         return ToolSpec(
             name: name, description: tool,
