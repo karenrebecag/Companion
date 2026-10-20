@@ -14,7 +14,6 @@ private func finished(_ id: String = "t1") -> TurnRecord {
         index: 0, name: "open_app", arguments: #"{"name":"\#(sentinel)"}"#, ok: true, target: "Safari",
         output: "opened \(sentinel)", verified: false, band: "act", ownerCheck: "none")]
     record.statusLines = ["opened \(sentinel)"]
-    record.receipts = [sentinel]
     record.reply = TurnReply(text: "hello \(sentinel)", isFailure: false)
     return record
 }

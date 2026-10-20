@@ -31,12 +31,11 @@ import CompanionTestKit
     }
     await h.session.advance()
     // 15d-5: the first utterance now ends at the comma.
-    // Feedback inmediato: the reply restates the receipt, so it is not spoken;
-    // the thread gets it once the round ends.
+    // The voice says what the model says; the thread gets it once the round ends.
     await pumpUntil("padre cl: terminó la segunda ronda") {
         h.thread.turns.contains { $0.role == .assistant && $0.content.contains("abrí Safari.") }
     }
-    expectEq(h.synth.queue, [], "padre cl: la respuesta que repite el recibo no suena")
+    expectEq(h.synth.queue, ["Listo,", "abrí Safari."], "padre cl: la voz dice lo que dice el modelo")
     expectEq(opener.openedApps, ["Safari"], "padre cl: se abrió")
     expectEq(h.chat.histories.count, 2, "padre cl: dos rondas")
     expect(h.chat.histories[1].contains { $0.role == .tool && $0.toolCallID == "c1" },
@@ -66,9 +65,7 @@ import CompanionTestKit
     await pumpUntil("flush cl: terminó la segunda ronda") {
         h.thread.turns.contains { $0.role == .assistant && $0.content.contains("Listo.") }
     }
-    // "Listo." restates the receipt and stays silent; the fragment still
-    // gets said before the next round.
-    expectEq(h.synth.queue, ["Voy a abrir Safari"], "flush cl: el fragmento se dice, el recibo ya cubre el cierre")
+    expectEq(h.synth.queue, ["Voy a abrir Safari", "Listo."], "flush cl: el fragmento se dice antes de la siguiente ronda")
 }
 
 final class JobEventBox: @unchecked Sendable {

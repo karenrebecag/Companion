@@ -84,8 +84,7 @@ import Testing
     await type("abre Safari", into: vm)
     expectEq(opener.openedApps, ["Safari"], "typed open: Safari opened once")
     expect(chat.histories.isEmpty, "typed open: the brain was never asked")
-    expectEq(vm.messages.map(\.role), [.user, .assistant], "typed open: the router replies in the thread")
-    expect(vm.turnRing.records.last?.receipts.isEmpty == false, "typed open: the turn carries its receipt")
+    expectEq(vm.messages.map(\.role), [.user], "typed open: a successful router action adds no text")
 }
 
 /// A head sure the words are the assistant's own, and an action head that

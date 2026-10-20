@@ -117,7 +117,6 @@ private func assistant(_ text: String) -> ThreadMessageInput {
     // MARK: Island
 
     private func allLines() -> [IslandState.Line] {
-        let receipt = ActionReceipt(lines: [sentinel])!
         return [
             .none, .holdHint, .keyBlocked, .pending, .thinking, .acting([sentinel]), .speaking,
             .job(goal: sentinel, step: sentinel, steps: 3), .completed, .couldntHear,
@@ -126,7 +125,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
             .updateAvailable(tag: sentinel), .transcriptsDebug, .cancelled, .followUp(sentinel),
             .dropZones, .connectApp(slug: sentinel, name: sentinel),
             .signInApp(slug: sentinel, name: sentinel), .chatError(sentinel),
-            .receipt(receipt), .replyCut, .approvalWithdrawn, .ownerCheck,
+            .replyCut, .approvalWithdrawn, .ownerCheck,
         ]
     }
 
@@ -136,7 +135,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
             "none", "holdHint", "keyBlocked", "pending", "thinking", "acting", "speaking",
             "job", "completed", "couldntHear", "permission", "failure", "dictating", "pasting",
             "dictated", "dictationResult", "updateAvailable", "transcriptsDebug", "cancelled",
-            "followUp", "dropZones", "connectApp", "signInApp", "chatError", "receipt", "replyCut",
+            "followUp", "dropZones", "connectApp", "signInApp", "chatError", "replyCut",
             "approvalWithdrawn", "ownerCheck",
         ])
         #expect(Set(names).count == names.count)
@@ -338,7 +337,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
         p.partial = sentinel
         p.dictation = sentinel
         p.dictatedText = DictatedText(sentinel)
-        p.notice = .receipt(ActionReceipt(lines: [sentinel])!)
+        p.notice = .connectApp(slug: sentinel, name: sentinel)
         let island = IslandState.from(p, pebbleHidden: false, followUp: sentinel, errorText: sentinel)
         let outputs = try [
             encoded(SessionInspection(p)),
@@ -392,10 +391,9 @@ private func lineIndex(_ line: IslandState.Line) -> Int {
     case .connectApp: 21
     case .signInApp: 22
     case .chatError: 23
-    case .receipt: 24
-    case .replyCut: 25
-    case .approvalWithdrawn: 26
-    case .ownerCheck: 27
+    case .replyCut: 24
+    case .approvalWithdrawn: 25
+    case .ownerCheck: 26
     }
 }
 
@@ -405,7 +403,7 @@ private func state(_ line: IslandState.Line) -> IslandState {
 
 extension SelfInspectionTests {
     @Test func allLinesCoversEveryCaseOnce() {
-        #expect(allLines().map(lineIndex) == Array(0..<28))
+        #expect(allLines().map(lineIndex) == Array(0..<27))
     }
 
     // MARK: Oracle role and empty probe
@@ -449,9 +447,9 @@ extension SelfInspectionTests {
         let carrying = allLines().filter(\.carriesText).map { inspectionName($0) }
         #expect(carrying == [
             "acting", "job", "dictating", "dictated", "dictationResult", "updateAvailable",
-            "followUp", "connectApp", "signInApp", "chatError", "receipt",
+            "followUp", "connectApp", "signInApp", "chatError",
         ])
-        #expect(carrying.count == 11)
+        #expect(carrying.count == 10)
     }
 
     private func inspectionName(_ line: IslandState.Line) -> String {
@@ -512,7 +510,6 @@ extension SelfInspectionTests {
         p.cards = [
             .connectApp(slug: sentinel, name: sentinel), .signInApp(slug: sentinel, name: sentinel),
             .approval(p.approvalQueue[0]), .approvalAnswered(tool: sentinel, approved: true, remembered: false),
-            .receipt(ActionReceipt(lines: [sentinel])!),
             .answer(Card(payload: .locations(LocationsBlock(title: sentinel, locations: [
                 .init(id: sentinel, name: sentinel, eyebrow: sentinel, address: sentinel,
                       lat: 1, lng: 2, url: sentinel),

@@ -47,7 +47,6 @@ private struct OpenTurn {
     let synth: ScriptedSynth
     let sound: FeedbackSoundSpy
     let marks: MarkRecorder
-    let receipts: [ActionReceipt]
 }
 
 /// One hold: the model opens Safari, then answers with `reply`.
@@ -67,18 +66,9 @@ private struct OpenTurn {
     runtime.markTimeline = { point in marks.record(point) }
     let box = AudioStreamBox<SessionEvent>()
     runtime.events = box
-    let reader = Task { () -> [SessionEvent] in
-        var all: [SessionEvent] = []
-        for await event in box.stream { all.append(event) }
-        return all
-    }
     await runtime.submit(config: Config(language: .es)) { _ in }
     box.finish()
-    let events = await reader.value
-    let receipts = events.compactMap { event -> ActionReceipt? in
-        if case .receipt(let receipt) = event { receipt } else { nil }
-    }
-    return OpenTurn(synth: synth, sound: sound, marks: marks, receipts: receipts)
+    return OpenTurn(synth: synth, sound: sound, marks: marks)
 }
 
 @Test @MainActor func testAQuickActionConfirmsAtToolDoneBeforeTheBrainSpeaks() async {
@@ -86,19 +76,16 @@ private struct OpenTurn {
     expectEq(turn.sound.played, [.confirm], "feedback: un earcon de confirmación")
     expectEq(turn.sound.roundsAtPlay, [1],
              "feedback: suena antes de que arranque la segunda ronda del modelo")
-    expectEq(turn.receipts.flatMap(\.lines), ["Abrí Safari."], "feedback: el recibo llega a la isla")
     expect(turn.marks.all.contains(.feedback), "feedback: marca release→feedback")
 }
 
-@Test @MainActor func testAReplyThatOnlyRestatesTheReceiptIsNotSpoken() async {
-    let turn = await openTurn(reply: "Listo, abrí Safari.")
-    expect(turn.synth.queue.isEmpty,
-           "redundante: la voz no repite lo que el recibo ya dice (\(turn.synth.queue))")
+@Test @MainActor func testAnEmptyReplyAfterAQuickActionStaysSilent() async {
+    let turn = await openTurn(reply: "")
+    expect(turn.synth.queue.isEmpty, "silencio: sin texto del modelo no suena nada (\(turn.synth.queue))")
 }
 
-@Test @MainActor func testAReplyWithContentStillSpeaksAfterAQuickAction() async {
-    let turn = await openTurn(reply: "Listo, abrí Safari. El clima de hoy es soleado.")
+@Test @MainActor func testWhatTheModelSaysAfterAQuickActionIsSpokenAsIs() async {
+    let turn = await openTurn(reply: "El clima de hoy es soleado.")
     let spoken = turn.synth.queue.joined(separator: " ")
-    expect(spoken.contains("El clima de hoy es soleado."),
-           "contenido: la frase con información sí suena (\(spoken))")
+    expect(spoken.contains("El clima de hoy es soleado."), "dato: la voz dice lo que dice el modelo (\(spoken))")
 }

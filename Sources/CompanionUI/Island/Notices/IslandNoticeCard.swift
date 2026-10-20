@@ -140,7 +140,6 @@ enum NoticeHoverRule {
         case .holdHint: .holdHint
         case .connectApp(let slug, let name): .connectApp(slug: slug, name: name)
         case .signInApp(let slug, let name): .signInApp(slug: slug, name: name)
-        case .receipt(let receipt): .receipt(receipt)
         case .replyCut: .replyCut
         case .approvalWithdrawn: .approvalWithdrawn
         default: nil

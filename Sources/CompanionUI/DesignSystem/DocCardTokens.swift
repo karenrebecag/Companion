@@ -1,8 +1,7 @@
 import SwiftUI
 
 // The result document the island opens when a turn ends: one dark card with a
-// title, prose, a table, source chips, and for a receipt a ledger of what was
-// done. Values are measured from the local reference app and named here by
+// title, prose, a table and source chips. Values are measured from the local reference app and named here by
 // use; nothing in the views below the design system carries a loose number.
 
 package enum DocCardMetrics {
@@ -91,46 +90,13 @@ package enum DocCardMetrics {
     package static let shadowBlur: CGFloat = 30
 }
 
-/// The receipt's ledger layout.
-package enum DocReceiptMetrics {
-    package static let tile: CGFloat = 48
-    package static let tileRadius: CGFloat = 12
-    package static let tileMark: CGFloat = 28
-    package static let headGap: CGFloat = 16
-    package static let titleSize: CGFloat = 16
-    package static let titleTracking: CGFloat = -0.01
-    package static let subSize: CGFloat = 12.5
-    package static let subGap: CGFloat = 5
-    package static let check: CGFloat = 20
-    package static let checkOffset: CGFloat = 5
-    package static let checkRing: CGFloat = 2
-    package static let checkMark: CGFloat = 11
-    package static let checkDraw = 0.42
-    /// The ledger's lines sit under the title, past the tile.
-    package static let ledgerIndent: CGFloat = 64
-    package static let ledgerTop: CGFloat = 24
-    package static let rowPadY: CGFloat = 9
-    package static let rowGap: CGFloat = 14
-    package static let valueSize: CGFloat = 13.5
-    package static let valueLeading: CGFloat = 1.35
-    /// The grid's row gap plus the rule's own pixel between two rows.
-    package static let rowSpacing: CGFloat = 2
-    package static let pillSize: CGFloat = 10.5
-    package static let pillPadX: CGFloat = 8
-    package static let pillPadY: CGFloat = 2
-}
-
 package enum DocCardInk {
     /// The card's fill and the colour the bottom fade ends in.
     package static let surface = Swatch("121317")
     package static let narrative = Swatch("8E97AE")
-    package static let receipt = Swatch("5CC48B")
     package static let toolFill = Swatch("2C2E36")
     package static let toolFillHover = Swatch("3A3D47")
-    package static let checkFill = Swatch("171C1A")
     package static let checkMark = Swatch("6ED69E")
-    package static let pillDone = Swatch("74D6A8")
-    package static let pillNeutral = Swatch("FFFFFF")
 
     package static let title = 1.0
     package static let prose = 0.84

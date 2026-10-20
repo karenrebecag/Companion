@@ -85,17 +85,10 @@ import Testing
     expect(IslandChrome.canvasWidth >= IslandChrome.docCardWidth + 2 * Space.x5, "documento: el lienzo lo aloja con su sombra")
 }
 
-@Test @MainActor func testAReceiptNoticeOpensTheDocumentShapeButAnUndoRowKeepsTheNarrowCard() {
+@Test @MainActor func testAnUndoRowKeepsTheNarrowCard() {
     var projection = SessionProjection()
-    projection.notice = .receipt(ActionReceipt(lines: ["Abri Safari."])!)
-    expectEq(IslandState.from(projection, pebbleHidden: false).size, .docCard, "recibo: el documento es ancho")
     projection.kind = .processing(.completed)
     projection.receipt = UndoReceipt(kind: .created, subject: "plan.md")
     expectEq(IslandState.from(projection, pebbleHidden: false).size, .card,
              "recibo: la fila de deshacer vive en la columna angosta")
-}
-
-@Test @MainActor func testALedgerRowSaysDoneOrVerifiedInOneShortWord() {
-    expectEq(IslandReceipt.pillLabel(ReceiptLine(text: "x", verified: true), language: .es), "Verificado", "pildora: comprobado")
-    expectEq(IslandReceipt.pillLabel(ReceiptLine(text: "x", verified: false), language: .en), "Done", "pildora: hecho")
 }

@@ -42,9 +42,6 @@ func islandArcGallerySnapshots() throws {
                     startedAt: t0.addingTimeInterval(12), finishedAt: t0.addingTimeInterval(20)),
         JobStepInfo(tool: "Write", label: "Write: plan.md", id: "d", startedAt: t0.addingTimeInterval(20)),
     ]
-    let receipt = try #require(ActionReceipt(entries: [
-        ReceiptLine(text: "Abrí Safari.", verified: false), ReceiptLine(text: "Escribí el texto.", verified: true),
-    ]))
     let notice = try #require(IslandNotice.content(for: .couldntHear))
     let approval = ApprovalRequest(requestId: "r", toolName: "Bash", summary: "rm -rf ~/Desktop/tmp",
                                    inputJSON: #"{"command":"rm -rf ~/Desktop/tmp"}"#)
@@ -74,11 +71,6 @@ func islandArcGallerySnapshots() throws {
             }
         }
         VStack(alignment: .leading, spacing: 28) {
-            panel("Recibo") {
-                IslandReceiptDoc(
-                    title: "Abre Safari y escribe el texto", receipt: receipt,
-                    maxHeight: IslandChrome.columnCap, onDismiss: {}, onContinue: {})
-            }
             panel("Aviso") {
                 IslandNoticeCard(content: notice, pausesClock: false, onHover: { _ in }, onAction: { _ in },
                                  onDismiss: {})

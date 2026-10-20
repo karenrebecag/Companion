@@ -30,12 +30,8 @@ extension ChatViewModel {
             delegateWithdrawn = decided.withdrawsDelegate
             return false
         case .acted(let outcome, let call):
-            if let line = ReceiptProof.entry(tool: call.name, outcome: outcome, language: language),
-               let receipt = ActionReceipt(entries: [line]) {
-                session.send(.receipt(receipt))
-                recording { $0.receipts += receipt.lines }
-            }
-            reply(DecisionCopy.acted(outcome, tool: call.name, language), failed: !outcome.ok)
+            // A success is on her screen already; only a failure is told.
+            if !outcome.ok { reply(DecisionCopy.acted(outcome, tool: call.name, language), failed: true) }
         case .confirm(let question), .said(let question):
             reply(question)
         case .declined:

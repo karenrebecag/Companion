@@ -2,7 +2,7 @@ import Foundation
 
 /// The kinds of card the island shows that the model may hear about.
 package enum IslandCardKind: String, Sendable, Equatable {
-    case result, notice, receipt, answer
+    case result, notice, answer
 }
 
 /// What happened on the island since the model last spoke (16h-3). Facts
@@ -87,7 +87,6 @@ extension SessionCard {
         switch self {
         case .couldntHear, .permission, .failure, .connectApp, .signInApp, .replyCut,
              .approvalWithdrawn: .notice
-        case .receipt: .receipt
         case .holdHint, .approval, .approvalAnswered, .answer: nil
         }
     }

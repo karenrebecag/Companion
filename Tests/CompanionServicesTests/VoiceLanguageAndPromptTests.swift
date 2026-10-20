@@ -77,8 +77,7 @@ private func languageRuntime(
     let es = ChatPrompt.system(
         ownerFirstName: "Karen", delegateEnabled: false, language: .es, voice: true)
     for rule in ["router con voz", "Dos frases casi siempre", "empieza por la noticia",
-                 "llama SIEMPRE a show_document", "dame cinco pasos", "nunca un archivo", "emojis", "a menos que el contexto lo muestre",
-                 "di qué hiciste en una frase"] {
+                 "llama SIEMPRE a show_document", "dame cinco pasos", "nunca un archivo", "emojis", "a menos que el contexto lo muestre"] {
         expect(es.contains(rule), "15d-9 fila 13: la regla de voz '\(rule)' está (es)")
     }
     expect(!es.contains("2 a 4 frases"), "15d-9: la voz no arrastra el largo del chat")
@@ -86,7 +85,7 @@ private func languageRuntime(
         ownerFirstName: "Karen", delegateEnabled: false, language: .en, voice: true)
     for rule in ["router with a voice", "Two sentences almost always", "contractions",
                  "Lead with the news", "ALWAYS call show_document", "give me five steps", "never a file", "emoji",
-                 "unless the context shows it", "say what you did in one sentence"] {
+                 "unless the context shows it"] {
         expect(en.contains(rule), "15d-9 fila 13: la regla de voz '\(rule)' está (en)")
     }
     expect(en.contains("Answer in English"), "15d-9: el idioma sigue dicho")

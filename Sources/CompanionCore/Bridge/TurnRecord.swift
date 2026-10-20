@@ -111,7 +111,6 @@ package struct TurnRecord: Sendable, Equatable {
     package var phases: [TurnPhaseMark] = []
     package var toolCalls: [TurnToolCall] = []
     package var cards: [TurnCardMark] = []
-    package var receipts: [String] = []
     package var statusLines: [String] = []
     package var handoffGoalLength: Int?
     package var pendingOwner: TurnPendingOwner?
@@ -227,7 +226,6 @@ package struct TurnResult: Encodable, Sendable, Equatable {
     let phases: [Phase]
     let toolCalls: [Call]
     let cards: [Card]
-    let receipts: [String]?
     let handoff: Handoff?
     let pendingOwnerCheck: Pending?
     let reply: Reply?
@@ -237,7 +235,7 @@ package struct TurnResult: Encodable, Sendable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case turnId = "turn_id", conversationId = "conversation_id", status
-        case elapsedMs = "elapsed_ms", phases, toolCalls = "tool_calls", cards, receipts, handoff
+        case elapsedMs = "elapsed_ms", phases, toolCalls = "tool_calls", cards, handoff
         case pendingOwnerCheck = "pending_owner_check", reply, statusLines = "status_lines", error, truncated
     }
 
@@ -260,7 +258,6 @@ package struct TurnResult: Encodable, Sendable, Equatable {
                 output: includeText ? Self.capped(TurnRedaction.redact(call.output), outputCap) : nil)
         }
         cards = record.cards.map { Card(kind: $0.kind) }
-        receipts = includeText ? record.receipts.map(TurnRedaction.redact) : nil
         handoff = record.handoffGoalLength.map { Handoff(executor: "claude-code", goalLength: $0) }
         pendingOwnerCheck = record.pendingOwner.map { Pending(tool: $0.tool, band: $0.band, reason: $0.reason) }
         reply = record.reply.map {
