@@ -5,6 +5,7 @@ import {
 import { GROUP_TITLE, groupPlan, releasePlan, cleanupPlan, recordCreated } from './lib/groups.js';
 import { createCdp, isControl } from './lib/cdp.js';
 import { wireDialogs, STAYED } from './lib/dialog-wiring.js';
+import { changedOf, SETTLE_QUIET_MS, SETTLE_CAP_MS } from './lib/effect.js';
 
 const HOST = 'com.karen.companion.browser';
 const PROTOCOL = 1;
@@ -120,18 +121,18 @@ function dispatch(name, args) {
   switch (name) {
     case 'browser_tabs': return tabs();
     case 'browser_read': return readTab(args);
-    case 'browser_click': return trustedPress(args, GESTURES.click);
-    case 'browser_double_click': return trustedPress(args, GESTURES.double);
-    case 'browser_right_click': return trustedPress(args, GESTURES.right);
-    case 'browser_type': return trustedType(args);
-    case 'browser_select': return act(args, (g, id, option) => globalThis.__companionPage.select(g, id, option), [args.option]);
+    case 'browser_click': return withEffect(args, () => trustedPress(args, GESTURES.click));
+    case 'browser_double_click': return withEffect(args, () => trustedPress(args, GESTURES.double));
+    case 'browser_right_click': return withEffect(args, () => trustedPress(args, GESTURES.right));
+    case 'browser_type': return typeChecked(args);
+    case 'browser_select': return withEffect(args, () => act(args, (g, id, option) => globalThis.__companionPage.select(g, id, option), [args.option]));
     case 'browser_hover': return trustedPress(args, GESTURES.hover);
     case 'browser_scroll': return args.element != null ? scrollToElement(args) : trustedScroll(args);
-    case 'browser_press': return trustedKeyPress(args);
+    case 'browser_press': return withEffect(args, () => trustedKeyPress(args));
     case 'browser_drag': return trustedDrag(args);
-    case 'browser_click_at': return trustedClickAt(args);
+    case 'browser_click_at': return withEffect(args, () => trustedClickAt(args));
     case 'browser_set_files': return setFiles(args);
-    case 'browser_navigate': return navigate(args.tab, args.url);
+    case 'browser_navigate': return withEffect(args, () => navigate(args.tab, args.url));
     case 'browser_open': return openTab(args.url);
     case 'browser_take': return serial(() => takeTab(args.tab));
     case 'browser_release': return serial(() => releaseTab(args.tab));
@@ -375,6 +376,44 @@ function remember(previous, generation, map) {
   const reads = new Map(kept);
   const latest = Math.max(...reads.keys());
   return { generation: latest, map: reads.get(latest), reads };
+}
+
+// One look at the tab: address and title from Chrome (they survive a navigation), the content digest from
+// the page. With `settle` it first waits for the DOM to go quiet. A page that cannot answer leaves the
+// digest null instead of failing the action it only observes.
+async function glance(tabId, settle) {
+  const target = { tabId, frameIds: [0] };
+  let textHash = null;
+  try {
+    await inject(target);
+    const seen = await inPage(target, (wait, quiet, cap) => (wait
+      ? globalThis.__companionPage.settled(quiet, cap)
+      : globalThis.__companionPage.snapshot()), [settle, SETTLE_QUIET_MS, SETTLE_CAP_MS]);
+    textHash = seen?.textHash ?? null;
+  } catch {
+    textHash = null;
+  }
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  return tab ? { url: tab.url ?? '', title: tab.title ?? '', textHash } : null;
+}
+
+// Incredible compares url, title and a text hash around an action so the model learns "nothing visibly
+// happened" without spending a read. Only a successful done carries it; a refusal is its own answer.
+async function withEffect(args, action) {
+  const before = await glance(args.tab, false);
+  const result = await action();
+  if (!before || !result || result.error || typeof result.done !== 'string') return result;
+  const changed = changedOf(before, await glance(args.tab, true));
+  return changed ? { ...result, changed } : result;
+}
+
+// A typed value is its own postcondition: the field's content is re-read and only its length is reported.
+async function typeChecked(args) {
+  const result = await trustedType(args);
+  if (result.done !== 'typed') return result;
+  const check = await act(args, (g, id, text) => globalThis.__companionPage.typedMatch(g, id, text), [args.text]).catch(() => null);
+  if (!check || check.error) return result;
+  return { ...result, typed: check.unverified ? { outcome: 'applied_unverified' } : { matched: check.matched, length: check.length } };
 }
 
 async function act(args, func, extra) {

@@ -217,7 +217,7 @@ extension BrowserToolRunner {
             return failed(tool, error)
         case .success(let reply):
             return ParentToolOutcome(
-                ok: true, output: "\(done); read the tab again to see the result" + dialogNote(reply.dialogs), target: target, tool: tool.rawValue)
+                ok: true, output: "\(done); " + Self.whatHappened(reply) + dialogNote(reply.dialogs), target: target, tool: tool.rawValue)
         }
     }
 }

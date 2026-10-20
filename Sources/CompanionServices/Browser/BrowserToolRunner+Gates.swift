@@ -184,13 +184,19 @@ extension BrowserToolRunner {
                     target: page.origin, tool: tool.rawValue)
             }
             let done = tool == .type ? "typed into" : tool == .select ? "chose an option in" : Self.verb(tool, past: true)
-            let base = "\(done) [\(id)]; read the tab again to see the result"
+            let base = "\(done) [\(id)]; " + Self.whatHappened(reply)
             let output: String
             if reply.isUnconfirmed { output = base + " " + BrowserCopy.pressUnconfirmed(language()) } else { output = base }
             return ParentToolOutcome(
                 ok: true, output: output + dialogNote(reply.dialogs),
                 target: page.origin, tool: tool.rawValue)
         }
+    }
+
+    /// What the extension measured, so the model skips a read it does not need; without a measurement it
+    /// is told to read, as before.
+    static func whatHappened(_ reply: BrowserInbound) -> String {
+        reply.effect?.line ?? "read the tab again to see the result"
     }
 
     private func navigate(

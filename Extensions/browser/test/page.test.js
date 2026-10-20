@@ -2344,3 +2344,78 @@ test('a field outside the fieldset does not take its legend as context', () => {
 test('a field inside the fieldset takes its legend as context', () => {
   assert.equal(page.serializeElement(formField(true), 1, 0).context, 'Pizza Size');
 });
+
+// ---- Postconditions ----
+
+const docOf = (text, controls = []) => ({ body: { innerText: text }, querySelectorAll: () => controls });
+
+test('snapshot changes when a select value or a checkbox changes, though the text does not', () => {
+  const select = fake({ tag: 'select' });
+  select.value = 'a';
+  const box = fake({ tag: 'input', attrs: { type: 'checkbox' } });
+  box.checked = false;
+  const same = page.snapshot(docOf('Hola', [select, box])).textHash;
+  assert.equal(page.snapshot(docOf('Hola', [select, box])).textHash, same);
+  select.value = 'b';
+  assert.notEqual(page.snapshot(docOf('Hola', [select, box])).textHash, same, 'select');
+  select.value = 'a';
+  box.checked = true;
+  assert.notEqual(page.snapshot(docOf('Hola', [select, box])).textHash, same, 'checkbox');
+});
+
+test('snapshot never lets a sensitive field value move the digest', () => {
+  const secret = fake({ tag: 'input', attrs: { type: 'password' }, value: 'one' });
+  const before = page.snapshot(docOf('Hola', [secret])).textHash;
+  secret.value = 'two';
+  assert.equal(page.snapshot(docOf('Hola', [secret])).textHash, before);
+});
+
+test('settled waits for the DOM to be quiet, then answers a fresh snapshot', async () => {
+  const seen = [];
+  globalThis.MutationObserver = class {
+    constructor(fn) { this.fn = fn; seen.push(this); }
+    observe() {}
+    disconnect() { this.off = true; }
+  };
+  try {
+    const doc = docOf('A');
+    const done = page.settled(30, 500, doc);
+    setTimeout(() => { doc.body.innerText = 'B'; seen[0].fn(); }, 10);
+    const result = await done;
+    assert.deepEqual(result, page.snapshot(docOf('B')));
+    assert.equal(seen[0].off, true);
+  } finally {
+    delete globalThis.MutationObserver;
+  }
+});
+
+test('settled gives up at the cap when the page never stops mutating', async () => {
+  let observer = null;
+  globalThis.MutationObserver = class {
+    constructor(fn) { this.fn = fn; observer = this; }
+    observe() {}
+    disconnect() {}
+  };
+  try {
+    const chatter = setInterval(() => observer?.fn(), 5);
+    // The chatter keeps re-arming the quiet timer, so only the cap can end this; a hang fails the test.
+    const result = await page.settled(50, 120, docOf('A'));
+    clearInterval(chatter);
+    assert.deepEqual(result, page.snapshot(docOf('A')));
+  } finally {
+    delete globalThis.MutationObserver;
+  }
+});
+
+test('typedMatch reports the length and whether the field holds the text, never the value', () => {
+  armed(fake({ tag: 'input', attrs: { type: 'text' }, value: 'Ana' }));
+  assert.deepEqual(page.typedMatch(1, 1, 'Ana'), { matched: true, length: 3 });
+  assert.deepEqual(page.typedMatch(1, 1, 'Anaa'), { matched: false, length: 3 });
+});
+
+test('typedMatch says unverified for an element the page replaced and for a sensitive field', () => {
+  armed(fake({ tag: 'input', attrs: { type: 'text' }, value: 'Ana' }));
+  assert.deepEqual(page.typedMatch(1, 99, 'Ana'), { unverified: true });
+  armed(fake({ tag: 'input', attrs: { type: 'password' }, value: 'x' }));
+  assert.deepEqual(page.typedMatch(1, 1, 'x'), { unverified: true });
+});

@@ -437,3 +437,30 @@ test('errorReply cleans invisible characters out of the message', () => {
   assert.deepEqual(errorReply(4, 'option_not_found', 'Uno' + ZW + ' | Dos' + BIDI),
     { id: 4, error: { code: 'option_not_found', message: 'Uno | Dos' } });
 });
+
+test('buildPage caps the elements at 300 and says how many there really were', () => {
+  const el = (id) => ({ id, frame: null, role: 'button', label: 'L', context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null });
+  const elements = Array.from({ length: 450 }, (_, i) => el(i + 1));
+  const frames = [{ frameId: 0, result: { origin: 'https://x.test', text: 't', elements, total: 450 } }];
+  const { page, map } = buildPage({ id: 9, title: 'T', url: 'https://x.test/a', active: true }, 9, 4, null, frames);
+  assert.equal(page.elements.length, 300);
+  assert.equal(page.total, 450);
+  assert.equal(page.truncated, true);
+  assert.equal(map.size, 300);
+});
+
+test('buildPage keeps truncated false when everything fit', () => {
+  const frames = [{ frameId: 0, result: { origin: 'https://x.test', text: 't', elements: [], total: 0 } }];
+  const { page } = buildPage({ id: 9, title: 'T', url: 'https://x.test/a', active: true }, 9, 4, null, frames);
+  assert.equal(page.truncated, false);
+  assert.equal(page.total, 0);
+});
+
+test('an explicit max still wins over the default cap and counts the rest as truncated', () => {
+  const el = (id) => ({ id, frame: null, role: 'button', label: 'L', context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null });
+  const frames = [{ frameId: 0, result: { origin: 'https://x.test', text: '', elements: [el(1), el(2)], total: 9 } }];
+  const { page } = buildPage({ id: 9, title: 'T', url: 'https://x.test/a', active: true }, 9, 4, false, frames, { max: 2 });
+  assert.equal(page.elements.length, 2);
+  assert.equal(page.total, 9);
+  assert.equal(page.truncated, true);
+});
