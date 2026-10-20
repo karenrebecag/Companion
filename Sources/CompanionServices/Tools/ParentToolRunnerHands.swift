@@ -479,6 +479,15 @@ struct HandsAct {
         case .failure(let error): return fail(error.code, error.message)
         case .success(let found): target = found
         }
+        // QA 2026-10-19: a "New Folder" sheet held the focus and the note
+        // stayed empty while the reply said "written". The read-back cannot
+        // tell that apart, so the model has to have aimed at the dialog.
+        if target.modal, arguments["in_dialog"] as? Bool != true {
+            return fail("dialog_has_focus",
+                "the focus is in the \(target.place ?? "dialog") of \(target.app), not in a document; nothing "
+                    + "was typed. Close it (press_key escape) and type again, or, if the text belongs in "
+                    + "that dialog, call type_text with in_dialog: true")
+        }
         guard !moved else { return fail("target_changed", Self.appMoved) }
         // What the field holds before typing, read the way `read_focused`
         // reads it: the proof is that the text shows up MORE times after.
