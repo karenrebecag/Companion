@@ -79,15 +79,13 @@ private struct OpenTurn {
     expect(turn.marks.all.contains(.feedback), "feedback: marca release→feedback")
 }
 
-@Test @MainActor func testAReplyAfterAVisibleQuickActionIsNotSpoken() async {
-    let turn = await openTurn(reply: "Listo, abrí Safari. El clima de hoy es soleado.")
-    expect(turn.synth.queue.isEmpty,
-           "redundante: ella vio la acción, la voz calla (\(turn.synth.queue))")
+@Test @MainActor func testAnEmptyReplyAfterAQuickActionStaysSilent() async {
+    let turn = await openTurn(reply: "")
+    expect(turn.synth.queue.isEmpty, "silencio: sin texto del modelo no suena nada (\(turn.synth.queue))")
 }
 
-@Test @MainActor func testAQuestionStillSpeaksAfterAQuickAction() async {
-    let turn = await openTurn(reply: "¿Quieres que abra también Mail?")
+@Test @MainActor func testWhatTheModelSaysAfterAQuickActionIsSpokenAsIs() async {
+    let turn = await openTurn(reply: "El clima de hoy es soleado.")
     let spoken = turn.synth.queue.joined(separator: " ")
-    expect(spoken.contains("¿Quieres que abra también Mail?"),
-           "pregunta: lo que necesita de ella sí suena (\(spoken))")
+    expect(spoken.contains("El clima de hoy es soleado."), "dato: la voz dice lo que dice el modelo (\(spoken))")
 }

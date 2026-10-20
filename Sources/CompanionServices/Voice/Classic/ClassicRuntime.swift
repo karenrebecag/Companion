@@ -632,14 +632,8 @@ final class ClassicRuntime: @unchecked Sendable {
                 spoken = threaded
                 break
             }
-            // 15b-3: the router's own reply must sound inside the 1.5s
-            // budget — from disk if it is there, "Listo."/"Done." if not,
-            // with the specific text warmed in the background for next time.
-            let cached = await synthesizer.isCached(threaded)
-            let choice = AckPolicy.choose(
-                specific: threaded, specificCached: cached, language: language)
-            spoken = choice.speak
-            if let warm = choice.warm { await synthesizer.prewarm([warm]) }
+            // She watched it happen: a success is not confirmed aloud.
+            spoken = ""
         case .confirm(let question):
             spoken = question
             threaded = question
@@ -653,14 +647,14 @@ final class ClassicRuntime: @unchecked Sendable {
             spoken = line
             threaded = line
         }
-        await apply(.firstSentence)
+        if !spoken.isEmpty { await apply(.firstSentence) }
         // 16h-2: the line is queued before the job starts, same order as
         // the model path, and measured as the turn's acknowledgement.
         if case .delegate = outcome { await markTimeline?(.acknowledged) }
         // A press cut the router's turn (code review L2): nothing more is
         // said, and no errand starts behind the new hold.
         if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
-        await synthesizer.enqueue(spoken)
+        if !spoken.isEmpty { await synthesizer.enqueue(spoken) }
         if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
         if case .delegate(let handoff) = outcome { onDelegate?(handoff) }
         transcript?.said(spoken)

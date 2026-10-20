@@ -30,7 +30,8 @@ extension ChatViewModel {
             delegateWithdrawn = decided.withdrawsDelegate
             return false
         case .acted(let outcome, let call):
-            reply(DecisionCopy.acted(outcome, tool: call.name, language), failed: !outcome.ok)
+            // A success is on her screen already; only a failure is told.
+            if !outcome.ok { reply(DecisionCopy.acted(outcome, tool: call.name, language), failed: true) }
         case .confirm(let question), .said(let question):
             reply(question)
         case .declined:

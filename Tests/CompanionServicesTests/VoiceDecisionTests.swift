@@ -574,9 +574,9 @@ private func soft(_ choice: String) -> DecisionAnswer? {
     await h.session.release()
     await pumpUntil("decision on: opened") { opener.openedApps == ["Safari"] }
     expect(h.chat.histories.isEmpty, "decision on: el modelo fuerte nunca ve el turno")
-    // 15b-3: sin caché el sintetizador dice el acuse corto; el hilo sigue
-    // llevando la respuesta completa.
-    await pumpUntil("decision on: synth habla") { h.synth.queue.contains("Done.") }
+    // Ella lo ve en pantalla: un éxito del router no se dice; el hilo lleva la respuesta.
+    await pumpUntil("decision on: hilo") { h.thread.turns.contains { $0.role == .assistant } }
+    expect(h.synth.queue.isEmpty, "decision on: el éxito no suena (\(h.synth.queue))")
     expect(h.thread.turns.contains { $0.role == .assistant && $0.content == "Opened Safari." },
            "decision on: el hilo lleva la respuesta completa")
     expect(
@@ -702,8 +702,9 @@ private func soft(_ choice: String) -> DecisionAnswer? {
     await pumpUntil("si: listening") { h.watch.latest.state == .listening }
     await h.session.release()
     await pumpUntil("si: la papelera se vacio") { system.actCount == 1 }
-    // 15b-3: acuse corto en español; el hilo lleva el resultado completo.
-    await pumpUntil("si: se habla el resultado") { h.synth.queue.contains("Listo.") }
+    // Un éxito no se dice; el hilo lleva el resultado completo.
+    await pumpUntil("si: hilo") { h.thread.turns.contains { $0.role == .assistant } }
+    expect(!h.synth.queue.contains("Listo."), "si: el éxito no suena (\(h.synth.queue))")
     expect(h.thread.turns.contains { $0.role == .assistant && $0.content == "Hecho: system." },
            "si: el hilo lleva el resultado completo")
 }

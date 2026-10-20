@@ -21,9 +21,6 @@ extension ClassicRuntime {
         var deniedSheets: [String] = []
         /// Every sheet this round showed, however it ended.
         var shownSheets: [String] = []
-        /// Set when every call was a quick action that succeeded: she watched
-        /// it happen, so the reply that follows is not spoken.
-        var quiet = false
     }
 
     /// Runs the round and folds what it learnt into the turn that owns
@@ -44,7 +41,6 @@ extension ClassicRuntime {
         mouth.unverifiedTyped = round.unverified
         mouth.effectLines += round.effectLines
         if !round.shownSheets.isEmpty { mouth.sheetShown = true }
-        mouth.quiet = !mouth.sheetShown && round.quiet
         if round.sawCard { mouth.cardThisTurn = true }
     }
 
@@ -138,8 +134,7 @@ extension ClassicRuntime {
         }
         return ActedRound(
             turns: turns, effectLines: effects, sawCard: !cards.isEmpty, unverified: proof.unverified,
-            deniedSheets: deniedSheets, shownSheets: shownSheets,
-            quiet: quick)
+            deniedSheets: deniedSheets, shownSheets: shownSheets)
     }
 }
 
