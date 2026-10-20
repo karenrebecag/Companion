@@ -764,6 +764,8 @@
     }
     // Hidden ones go last so they cannot push the visible elements out of the max cut.
     if (includeHidden) nodes = [...nodes.filter(isVisible), ...nodes.filter((node) => !isVisible(node))];
+    // The cut below must not hide how many there were: the host reports the real total.
+    const total = nodes.length;
     if (Number.isInteger(q.max) && q.max > 0) nodes = nodes.slice(0, q.max);
     text = cutUnits(text, Number.isInteger(q.maxChars) && q.maxChars > 0 ? Math.min(q.maxChars, TEXT_MAX) : TEXT_MAX);
     const kept = new Map(state.reads ?? []);
@@ -780,7 +782,7 @@
     Object.assign(state, { reads, generation: latest, ...reads.get(latest) });
     const elements = nodes.map((node, i) => serializeElement(node, i + 1, frame));
     // Each frame reports its own origin so the app can tell third-party frames from the page.
-    return { origin: String(globalThis.location?.origin ?? ''), text, elements };
+    return { origin: String(globalThis.location?.origin ?? ''), text, elements, total };
   }
 
   function act(generation, id, run) {
@@ -992,9 +994,67 @@
     return { value: tag === 'input' || tag === 'textarea' ? el.value : String(el.textContent ?? '') };
   }
 
+  const SIGNATURE_TEXT_MAX = 50000;
+  const SIGNATURE_CONTROLS_MAX = 200;
+  // FNV-1a: the page only needs to tell "same" from "different"; the digest never leaves the extension.
+  function digest(text) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+    return h >>> 0;
+  }
+
+  // What an action can visibly change. Control values and checks are in because choosing an option or
+  // ticking a box leaves innerText alone; a sensitive field is skipped so its value never feeds anything.
+  function snapshot(doc = document) {
+    const controls = [];
+    for (const c of Array.from(doc.querySelectorAll('input,textarea,select')).slice(0, SIGNATURE_CONTROLS_MAX)) {
+      if (isSensitive(fieldOf(c))) continue;
+      const kind = String(c.type || '').toLowerCase();
+      controls.push(kind === 'checkbox' || kind === 'radio' ? (c.checked ? '1' : '0') : String(c.value ?? ''));
+    }
+    return { textHash: digest(bodyText(doc).slice(0, SIGNATURE_TEXT_MAX) + '\u0000' + controls.join('\u0001')) };
+  }
+
+  // Resolves once the DOM stops mutating for quietMs, or at capMs: a click's result often renders a beat later.
+  function settled(quietMs, capMs, doc = document) {
+    return new Promise((resolve) => {
+      const Observer = globalThis.MutationObserver;
+      let quiet = null;
+      let cap = null;
+      let observer = null;
+      const finish = () => {
+        clearTimeout(quiet);
+        clearTimeout(cap);
+        if (observer) observer.disconnect();
+        resolve(snapshot(doc));
+      };
+      const rearm = () => {
+        clearTimeout(quiet);
+        quiet = setTimeout(finish, quietMs);
+      };
+      if (typeof Observer === 'function') {
+        observer = new Observer(rearm);
+        observer.observe(doc, { subtree: true, childList: true, attributes: true, characterData: true });
+      }
+      rearm();
+      cap = setTimeout(finish, capMs);
+    });
+  }
+
+  // The field's own record of what landed. Length only: the value itself never travels back.
+  function typedMatch(generation, id, text) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return { unverified: true };
+    const el = found.element;
+    if (isSensitive(fieldOf(el))) return { unverified: true };
+    const tag = tagOf(el);
+    const actual = tag === 'input' || tag === 'textarea' ? String(el.value ?? '') : String(el.textContent ?? '');
+    return { matched: actual === String(text).replace(/\r\n?/g, '\n'), length: Array.from(actual).length };
+  }
+
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt, selectOption, boxOf, pointAt, focusElement, markFileInput, clearFileMark, fileSetOn,
+    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, snapshot, settled, typedMatch, hitsTarget, hitsAt, selectOption, boxOf, pointAt, focusElement, markFileInput, clearFileMark, fileSetOn,
     click: (generation, id) => act(generation, id, clickUncovered),
     doubleClick: (generation, id) => act(generation, id, doubleClickElement),
     contextClick: (generation, id) => act(generation, id, contextClickElement),

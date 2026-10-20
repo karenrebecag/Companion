@@ -262,6 +262,33 @@ import Testing
     }
 }
 
+// MARK: - postcondition line
+
+@Test func aClickThatChangedNothingSaysSoInsteadOfAskingForARead() async {
+    let rig = makeToolRig()
+    await rig.read()
+    rig.channel.answerWritesObserved(BrowserEffect(changed: []))
+    let out = await rig.run("browser_click", #"{"tab":12,"element":1}"#)
+    expect(out.ok && out.output.contains("changed: none"), "linea de cambio: \(out.output)")
+    expect(!out.output.contains("read the tab again"), "no gasta otra ronda: \(out.output)")
+}
+
+@Test func aTypeWhoseFieldMatchesSaysTypedMatched() async {
+    let rig = makeToolRig()
+    await rig.read()
+    rig.channel.answerWritesObserved(BrowserEffect(typed: .checked(matched: true, length: 4)))
+    let out = await rig.run("browser_type", #"{"tab":12,"element":5,"text":"Hola"}"#)
+    expect(out.ok && out.output.contains("typed: matched"), "typed matched: \(out.output)")
+    expect(!out.output.contains("Hola"), "nunca el valor: \(out.output)")
+}
+
+@Test func anUnmeasuredClickStillTellsTheModelToRead() async {
+    let rig = makeToolRig()
+    await rig.read()
+    let out = await rig.run("browser_click", #"{"tab":12,"element":1}"#)
+    expect(out.output.contains("read the tab again"), "sin medicion: \(out.output)")
+}
+
 @Test func theUnconfirmedLineIsLocalised() async {
     let rig = makeToolRig(language: { .es })
     await rig.read()

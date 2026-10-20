@@ -68,7 +68,7 @@ extension BrowserToolRunner {
             let on = element.map { " on [\($0.id)]" } ?? ""
             let count = press.times == 1 ? "" : " \(press.times) times"
             return ParentToolOutcome(
-                ok: true, output: "pressed \(press.key)\(on)\(count); read the tab again to see the result" + dialogNote(reply.dialogs),
+                ok: true, output: "pressed \(press.key)\(on)\(count); " + Self.whatHappened(reply) + dialogNote(reply.dialogs),
                 target: page.origin, tool: tool.rawValue)
         }
     }

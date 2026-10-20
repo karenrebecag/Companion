@@ -23,6 +23,14 @@ package enum BrowserCopy {
         }
     }
 
+    /// The read lists at most a capped number of elements; the model must know how many it did not see.
+    package static func elementsShown(_ shown: Int, of total: Int, _ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "[showing \(shown) of \(total) elements; read again with a selector or text to reach the rest]"
+        case .es: return "[\(shown) de \(total) elementos; vuelve a leer con un selector o texto para llegar al resto]"
+        }
+    }
+
     package static func description(_ tool: BrowserTool, _ language: AppLanguage) -> String {
         switch (tool, language) {
         case (.tabs, .en):

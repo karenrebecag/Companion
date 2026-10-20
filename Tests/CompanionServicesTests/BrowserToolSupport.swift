@@ -66,6 +66,10 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
     /// What the extension says when the press may not have landed on the element.
     func answerWritesUnconfirmed() { lock.withLock { writesUnconfirmed = true } }
 
+    private var writeEffect: BrowserEffect?
+    /// What the extension measured around the action.
+    func answerWritesObserved(_ effect: BrowserEffect) { lock.withLock { writeEffect = effect } }
+
     private var releaseFailure: ContractError?
     func failReleases(with error: ContractError) { lock.withLock { releaseFailure = error } }
 
@@ -136,6 +140,9 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
     }
 
     private func done(_ message: String) -> BrowserInbound {
+        if let writeEffect {
+            return .observed(id: 1, message: message, effect: writeEffect, unconfirmed: writesUnconfirmed, dialogs: writeDialogs)
+        }
         switch (writesUnconfirmed, writeDialogs) {
         case (true, let report?): return .actedUnconfirmed(id: 1, message: message, report)
         case (true, nil): return .doneUnconfirmed(id: 1, message: message)

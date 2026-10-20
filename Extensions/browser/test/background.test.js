@@ -1354,7 +1354,7 @@ test('a jump within the same page counts as loaded without waiting out the budge
   const rig = await boot({ tabs: userTabs() });
   rig.state.sameDocument = true;
   const reply = await ask(rig.ports[0], 102, 'browser_navigate', { tab: 3, url: 'https://x.example/#faq' });
-  assert.deepEqual(reply.result, { done: 'navigated' });
+  assert.deepEqual(reply.result, { done: 'navigated', changed: ['url'] });
   assert.equal(rig.state.updatedListeners.length, 0);
 });
 
@@ -2671,4 +2671,66 @@ test('a file set waits behind a click already running on the same tab', async ()
   assert.deepEqual(answersTo(rig.ports[0], 432)[0].result, { done: 'files-set' });
   const order = rig.state.cdp.map(([, method, params]) => (method === 'Input.dispatchMouseEvent' ? params.type : method));
   assert.ok(order.indexOf('DOM.getDocument') > order.indexOf('mousePressed'));
+});
+
+// ---- Postconditions: what the action visibly changed ----
+
+test('a click on a page that does not visibly change reports changed: []', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  rig.state.page.snapshot = () => ({ textHash: 7 });
+  rig.state.page.settled = async () => ({ textHash: 7 });
+  const reply = await ask(rig.ports[0], 300, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked', changed: [] });
+});
+
+test('a click that rewrites the page text reports changed: text, never the text itself', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  rig.state.page.snapshot = () => ({ textHash: 7 });
+  rig.state.page.settled = async () => ({ textHash: 8 });
+  const reply = await ask(rig.ports[0], 301, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked', changed: ['text'] });
+});
+
+test('a page that cannot be glanced at leaves the click reply as it always was', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  const reply = await ask(rig.ports[0], 302, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+});
+
+test('a refused click carries no changed field', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  rig.state.page.snapshot = () => ({ textHash: 7 });
+  rig.state.page.settled = async () => ({ textHash: 8 });
+  const reply = await ask(rig.ports[0], 303, 'browser_click', { tab: 3, generation: generation + 1, element: 1 });
+  assert.ok(reply.error);
+  assert.equal(reply.result, undefined);
+});
+
+test('typing reports whether the field holds the text, with its length and never its value', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { readBack: 'Ana' });
+  rig.state.page.typedMatch = (g, id, text) => ({ matched: true, length: Array.from(text).length });
+  const reply = await ask(rig.ports[0], 304, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.deepEqual(reply.result, { done: 'typed', typed: { matched: true, length: 3 } });
+  assert.equal(JSON.stringify(reply).includes('"value"'), false);
+});
+
+test('typing into a field the page re-rendered says applied_unverified', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { readBack: 'Ana' });
+  rig.state.page.typedMatch = () => ({ unverified: true });
+  const reply = await ask(rig.ports[0], 305, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.deepEqual(reply.result, { done: 'typed', typed: { outcome: 'applied_unverified' } });
+});
+
+test('typing a text the field does not hold reports matched: false', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { readBack: 'Ana' });
+  rig.state.page.typedMatch = () => ({ matched: false, length: 1 });
+  const reply = await ask(rig.ports[0], 306, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.deepEqual(reply.result.typed, { matched: false, length: 1 });
 });

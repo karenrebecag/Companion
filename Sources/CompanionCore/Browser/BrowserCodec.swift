@@ -82,6 +82,9 @@ package enum BrowserCodec {
             let report = BrowserDialogReport.decode(result["dialogs"], more: result["more"])
             // Only a real JSON boolean: a string or a number must not flip the warning on.
             let unconfirmed = (result["unconfirmed"] as? NSNumber).map { CFGetTypeID($0) == CFBooleanGetTypeID() && $0.boolValue } ?? false
+            if let effect = BrowserEffect.decode(changed: result["changed"], typed: result["typed"]) {
+                return .success(.observed(id: id, message: message, effect: effect, unconfirmed: unconfirmed, dialogs: report))
+            }
             switch (unconfirmed, report) {
             case (true, let report?): return .success(.actedUnconfirmed(id: id, message: message, report))
             case (true, nil): return .success(.doneUnconfirmed(id: id, message: message))
@@ -112,7 +115,7 @@ package enum BrowserCodec {
         return BrowserPage(
             tab: tab, origin: origin, url: url, title: raw["title"] as? String ?? "",
             text: raw["text"] as? String ?? "", generation: generation, elements: elements,
-            truncated: raw["truncated"] as? Bool ?? false)
+            truncated: raw["truncated"] as? Bool ?? false, total: integer(raw["total"]))
     }
 
     private static func element(_ raw: [String: Any]) -> BrowserElement? {

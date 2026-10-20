@@ -163,12 +163,15 @@ package struct BrowserPage: Sendable, Equatable {
     package var generation: Int
     package var elements: [BrowserElement]
     package var truncated: Bool
+    /// Every element the page had, before the cap; nil from an extension that does not count.
+    package var total: Int?
     /// Native dialogs the extension answered since the last reply for this tab; nil when none.
     package var dialogs: BrowserDialogReport?
 
     package init(
         tab: Int, origin: String, url: String, title: String, text: String,
-        generation: Int, elements: [BrowserElement], truncated: Bool, dialogs: BrowserDialogReport? = nil
+        generation: Int, elements: [BrowserElement], truncated: Bool, total: Int? = nil,
+        dialogs: BrowserDialogReport? = nil
     ) {
         self.tab = tab
         self.origin = origin
@@ -178,6 +181,7 @@ package struct BrowserPage: Sendable, Equatable {
         self.generation = generation
         self.elements = elements
         self.truncated = truncated
+        self.total = total
         self.dialogs = dialogs
     }
 }
@@ -255,13 +259,16 @@ package enum BrowserInbound: Sendable, Equatable {
     case acted(id: Int, message: String, BrowserDialogReport)
     /// Both at once: dialogs were answered and the press landing was never seen.
     case actedUnconfirmed(id: Int, message: String, BrowserDialogReport)
+    /// A done that also carries what the action visibly changed. The four cases above stay for replies
+    /// without a measurement, so every existing match keeps its meaning.
+    case observed(id: Int, message: String, effect: BrowserEffect, unconfirmed: Bool, dialogs: BrowserDialogReport?)
     case error(id: Int?, BridgeErrorBody)
 
     /// The done text whether or not dialogs came with it.
     package var doneMessage: String? {
         switch self {
         case .done(_, let message), .acted(_, let message, _), .doneUnconfirmed(_, let message),
-             .actedUnconfirmed(_, let message, _): return message
+             .actedUnconfirmed(_, let message, _), .observed(_, let message, _, _, _): return message
         default: return nil
         }
     }
@@ -269,13 +276,20 @@ package enum BrowserInbound: Sendable, Equatable {
     package var isUnconfirmed: Bool {
         switch self {
         case .doneUnconfirmed, .actedUnconfirmed: return true
+        case .observed(_, _, _, let unconfirmed, _): return unconfirmed
         default: return false
         }
+    }
+
+    package var effect: BrowserEffect? {
+        if case .observed(_, _, let effect, _, _) = self { return effect }
+        return nil
     }
 
     package var dialogs: BrowserDialogReport? {
         switch self {
         case .acted(_, _, let report), .actedUnconfirmed(_, _, let report): return report
+        case .observed(_, _, _, _, let report): return report
         case .page(_, let page): return page.dialogs
         default: return nil
         }

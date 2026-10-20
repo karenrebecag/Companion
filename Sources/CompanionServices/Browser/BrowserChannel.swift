@@ -169,7 +169,7 @@ package actor BrowserChannel {
     private func route(_ inbound: BrowserInbound, on connection: BridgeConnection) {
         switch inbound {
         case .tabs(let id, _), .opened(let id, _), .page(let id, _), .done(let id, _), .acted(let id, _, _),
-             .doneUnconfirmed(let id, _), .actedUnconfirmed(let id, _, _):
+             .doneUnconfirmed(let id, _), .actedUnconfirmed(let id, _, _), .observed(let id, _, _, _, _):
             resolve(id, .success(inbound))
         case .error(let id, let body):
             guard let id else {
@@ -251,6 +251,10 @@ package actor BrowserChannel {
         _ command: BrowserCommand, _ result: Result<BrowserInbound, ContractError>
     ) -> Result<BrowserInbound, ContractError> {
         guard case .success(let inbound) = result else { return result }
+        if case .observed(_, _, _, let unconfirmed, _) = inbound {
+            return observedFits(command, unconfirmed: unconfirmed)
+                ? result : .failure(error(BridgeCode.badFrame, "Unexpected reply for \(tool(command).rawValue)"))
+        }
         switch (command, inbound) {
         // Only a press on an element has a landing to doubt; any other tool claiming one is broken.
         case (.click, .doneUnconfirmed), (.doubleClick, .doneUnconfirmed), (.rightClick, .doneUnconfirmed),
@@ -264,6 +268,15 @@ package actor BrowserChannel {
             return result
         default:
             return .failure(error(BridgeCode.badFrame, "Unexpected reply for \(tool(command).rawValue)"))
+        }
+    }
+
+    /// Which commands the extension measures; an unconfirmed landing only means something for a press on an element.
+    private static func observedFits(_ command: BrowserCommand, unconfirmed: Bool) -> Bool {
+        switch command {
+        case .click, .doubleClick, .rightClick: return true
+        case .type, .select, .press, .clickAt, .navigate: return !unconfirmed
+        default: return false
         }
     }
 

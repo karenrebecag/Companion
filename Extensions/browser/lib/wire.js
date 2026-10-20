@@ -5,6 +5,8 @@ export const BACKOFF_START_MS = 1000;
 export const BACKOFF_MAX_MS = 30000;
 const FIELD_MAX = 500;
 const ROLE_MAX = 64;
+// As in Incredible (max_elements || 300): a page with thousands of controls would otherwise fill the frame with them.
+export const ELEMENT_CAP = 300;
 
 const encoder = new TextEncoder();
 const byteLength = (value) => encoder.encode(JSON.stringify(value)).length;
@@ -207,18 +209,22 @@ const orNull = (value, fn) => (value == null ? null : fn(value));
 
 // A scoped read (a selector, or inside one element) runs in one frame, so its failure is the answer.
 export function buildPage(tab, tabId, generation, scoped, frames, { max = null, maxChars = null } = {}) {
+  const cap = max ?? ELEMENT_CAP;
   const failed = frames.find((f) => f.result.error);
   if (failed && scoped) return { error: failed.result.error };
   const pageOrigin = originOf(tab.url ?? '');
   const map = new Map();
   const elements = [];
   const texts = [];
+  let total = 0;
   for (const { frameId, result } of frames) {
     if (result.error) continue;
+    // An older page.js sends no total: what it listed is all it knew.
+    total += Number.isInteger(result.total) ? result.total : result.elements.length;
     const frameOrigin = frameId === 0 || result.origin === pageOrigin ? null : String(result.origin ?? 'null');
     if (result.text) texts.push(frameText(frameId, result));
     for (const el of result.elements) {
-      if (max != null && elements.length >= max) break;
+      if (elements.length >= cap) break;
       const id = elements.length + 1;
       map.set(id, { frameId, localId: el.id });
       elements.push({
@@ -250,7 +256,8 @@ export function buildPage(tab, tabId, generation, scoped, frames, { max = null, 
       text: scrubText(maxChars == null ? texts.join('\n') : clipPoints(texts.join('\n'), maxChars)),
       generation,
       elements,
-      truncated: false,
+      total,
+      truncated: total > elements.length,
     },
   };
 }
