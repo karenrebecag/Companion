@@ -183,9 +183,11 @@ package enum WorkdirPreference {
     /// it is the home tree — full reach, the specialist's toolbox is not
     /// fenced to a subfolder. This reverses the Wave 9h default by the owner's
     /// call: Companion is meant to match the Claude Code CLI, where the user
-    /// scopes the work in the conversation, not a standing sandbox. `acceptEdits`
-    /// still auto-accepts only edits, and commands still ask through the voice
-    /// sheet — reach is wide, the permission gate stays.
+    /// scopes the work in the conversation, not a standing sandbox. The run is
+    /// in `auto` mode: Claude Code's classifier approves what it judges safe
+    /// without a sheet, and a fixed denylist (`ClaudeCodeExecutor.deniedTools`)
+    /// blocks sudo, push, wipes and the credential and app-data folders. It is
+    /// not a sandbox; docs/DECISIONS.md (ADR 015) lists what it does not cover.
     nonisolated package static var effective: String {
         validated ?? FileManager.default.homeDirectoryForCurrentUser
             .resolvingSymlinksInPath().path

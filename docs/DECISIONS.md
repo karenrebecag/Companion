@@ -691,3 +691,26 @@ producto no exige OpenAI.
 - El limite de tools de Cerebras no esta publicado en su documentacion. Queda
   como HACK en `ProviderDescriptor.cerebras` con su disparador.
 - ADR 001 queda superseded y no se borra.
+
+## ADR 015 — El especialista corre en `auto` con lista negra, y su techo es conocido
+
+**Fecha:** 2026-10-19 · **Estado:** aceptada
+
+**Contexto.** La auditoria (CN-005) encontro que el especialista (`claude -p`)
+corre con `--permission-mode auto`, no `acceptEdits`, desde `$HOME` por
+defecto, y que un comentario en `UserPreferences` decia lo contrario. Sin
+`auto` la delegacion no funciona: nadie contesta una hoja dentro del proceso.
+
+**Decision.** Se mantiene `auto` y se endurece la lista negra
+(`ClaudeCodeExecutor.deniedTools`): ademas de sudo, push y borrados, niega
+Read, Edit y Bash sobre `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/Library/Keychains` y
+`~/Library/Application Support/Companion` (incluye la memoria, que se relee en
+cada prompt). El comentario se corrigio.
+
+**Consecuencias.**
+
+- Techo conocido: un script escrito y luego ejecutado, `python -c` y base64
+  arman la ruta en ejecucion y no los cubre ninguna lista. Ese residuo es del
+  clasificador de `auto`.
+- Subir el techo exige un sandbox real (carpeta de trabajo acotada); hasta
+  entonces la lista es defensa en profundidad, no una frontera.

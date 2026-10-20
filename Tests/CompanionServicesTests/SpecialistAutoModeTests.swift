@@ -41,6 +41,12 @@ private func expectAutoPosture(_ args: [String], _ label: String) {
     for pattern in ClaudeCodeExecutor.deniedTools {
         expect(denied.contains(pattern), "\(label): prohíbe \(pattern)")
     }
+    // CN-005: credentials and the app's own data are off limits for read and edit.
+    for pattern in ["Read(~/.ssh/**)", "Edit(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.gnupg/**)",
+                    "Read(~/Library/Keychains/**)", "Edit(~/Library/Application Support/Companion/**)",
+                    "Bash(* ~/.ssh*)", "Bash(* $HOME/.ssh*)"] {
+        expect(denied.contains(pattern), "\(label): niega \(pattern)")
+    }
     expect(ClaudeCodeExecutor.deniedTools.contains("Bash(osascript *)"),
            "\(label): la pantalla es de las manos del padre")
     expect(ClaudeCodeExecutor.deniedTools.contains("Bash(sudo *)"), "\(label): nunca sudo")

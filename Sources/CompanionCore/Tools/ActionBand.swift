@@ -79,8 +79,11 @@ extension ActionBand {
     package static func classify(
         toolName: String, arguments: [String: Any], facts: ActionFacts
     ) -> ActionBand {
-        // One line in a folder she can open, undone from Settings › Memoria.
-        if reads.contains(toolName) || toolName == MemoryTool.name { return .act }
+        if reads.contains(toolName) { return .act }
+        // One line in a folder she can open, undone from Settings › Memoria. But
+        // every later prompt reads it back as a fact about her, so after a read
+        // outside the work folder a page could be dictating it: the owner decides.
+        if toolName == MemoryTool.name { return facts.tainted ? .critical : .act }
         if hands.contains(toolName) {
             return facts.destructiveTarget || facts.inTerminal ? .critical : .act
         }

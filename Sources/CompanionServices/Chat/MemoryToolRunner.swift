@@ -2,15 +2,32 @@ import CompanionCore
 import Foundation
 
 /// `remember` for the conversation, composed next to the parent's runner.
-/// It asks no sheet: the user said it out loud, the write is one line in a
-/// folder she can open, and Settings › Memoria forgets it. Local only: the
+/// It asks no sheet in a clean turn: the user said it out loud, the write is
+/// one line in a folder she can open, and Settings › Memoria forgets it. After
+/// a read outside the work folder the words may be a page's, so it asks
+/// (`ActionBand`). Local only: the
 /// bridge never lends it, or an outside agent could plant notes that every
 /// later conversation reads as facts about her.
 package struct MemoryToolRunner: ParentToolExecuting, Sendable {
     private let notes: any MemoryNoting
+    private let taint: TurnTaint
 
-    package init(notes: any MemoryNoting) {
+    /// `taint` is the one the parent's runner resets each turn; a private
+    /// default would never see a page read and the sheet would never ask.
+    package init(notes: any MemoryNoting, taint: TurnTaint = TurnTaint()) {
         self.notes = notes
+        self.taint = taint
+    }
+
+    package func band(for call: ToolCallRef) async -> ActionBand {
+        ActionBand.classify(toolName: call.name, arguments: [:], facts: ActionFacts(tainted: taint.isTainted))
+    }
+
+    package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+        guard handles(call.name), taint.isTainted else { return nil }
+        return ApprovalRequest(
+            requestId: UUID().uuidString, toolName: call.name,
+            summary: "Tool requires user approval", inputJSON: call.arguments)
     }
 
     package func specs(_ language: AppLanguage) -> [ToolSpec] {
