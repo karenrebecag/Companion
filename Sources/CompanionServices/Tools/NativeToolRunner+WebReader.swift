@@ -25,7 +25,7 @@ extension NativeToolRunner {
         else {
             return ToolResult(ok: false, output: "Not a usable URL: \(tokens.joined(separator: " "))")
         }
-        guard urls.allSatisfy(EndpointPolicy.isAcceptable) else {
+        guard urls.allSatisfy(PageFetchPolicy.isAcceptable) else {
             return ToolResult(ok: false, output: "URL not acceptable by security policy")
         }
         guard let webReader, webReader.isConfigured else {

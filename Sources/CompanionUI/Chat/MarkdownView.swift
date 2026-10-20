@@ -91,7 +91,9 @@ package struct MarkdownView: View {
     nonisolated static func fenceCard(language: String, body: String) -> Card? {
         let payload: CardPayload? = switch language {
         case CompanionBlocks.locationsLanguage: CompanionBlocks.locations(body).map { .locations($0) }
-        case CompanionBlocks.galleryLanguage: CompanionBlocks.gallery(body).map { .gallery($0) }
+        // No gallery: its card fetches model-supplied URLs at render time with
+        // no click, a data beacon. The island holds it back as code for the
+        // same reason (AnswerBlocks.fencePayload), so both surfaces agree.
         default: dataCard(language: language, body: body)
         }
         return payload.map { Card(payload: $0, source: .model) }
