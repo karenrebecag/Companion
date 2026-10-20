@@ -1,3 +1,5 @@
+import AppKit
+import CompanionCore
 import CompanionTestKit
 @testable import CompanionUI
 import Foundation
@@ -61,4 +63,29 @@ private extension View {
     _ = try #require(ImageRenderer(content: rows).nsImage)
     expectEq(xs.count, 3, "las tres filas midieron")
     expect(xs.allSatisfy { abs($0 - IslandGrid.contentInset) < 0.5 }, "todas en x = 44: \(xs)")
+}
+
+// coucou keeps its band pieces out from under the notch ("two pills and the
+// icons do not clear the notch"). Here nothing checked it: one more icon in
+// the header would slide under the camera and vanish. Measured, not counted.
+@Test @MainActor func theBandHeaderStaysInTheWingBesideTheNotch() {
+    let header = NSHostingView(rootView: IslandHeaderControls(popover: .constant(nil))).fittingSize.width
+    expect(header > 0, "el header midio")
+    // 188 is the 14-inch notch the other island tests use; 226 leaves a fifth of room.
+    for notchWidth: CGFloat in [188, 226] {
+        let aux = (1512 - notchWidth) / 2
+        let notch = NotchGeometry.notch(on: ScreenShape(
+            frame: CGRect(x: 0, y: 0, width: 1512, height: 982), visibleMaxY: 945,
+            safeTop: 38, leftAuxWidth: aux, rightAuxWidth: aux))
+        for size: IslandState.Size in [.nudge, .chat] {
+            let wing = IslandGrid.wing(shape: IslandChrome.width(for: size, notch: notch),
+                                       notch: notchWidth, margin: IslandChrome.margin(for: size))
+            expect(header <= wing, "\(size) con notch \(notchWidth): header \(header) cabe en el ala \(wing)")
+        }
+    }
+}
+
+@Test @MainActor func aShapeNoWiderThanTheNotchHasNoWing() {
+    expectEq(IslandGrid.wing(shape: 188, notch: 188, margin: 18), 0, "sin ala, nada va en la banda")
+    expectEq(IslandGrid.wing(shape: 480, notch: 188, margin: 18), 128, "(480 - 188) / 2 - 18")
 }

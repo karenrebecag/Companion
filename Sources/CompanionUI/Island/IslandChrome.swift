@@ -24,6 +24,11 @@ package enum IslandChrome {
     /// measures 621, a 16 pt pad, not the 18 of the chat rows.
     package static let docShellMargin: CGFloat = 16
     package static let docCardWidth: CGFloat = DocCardMetrics.width + docShellMargin + docShellMargin
+
+    /// The shell's side padding: the document's sizes pad like the document.
+    package static func margin(for size: IslandState.Size) -> CGFloat {
+        size == .docCard || size == .chat ? docShellMargin : shellMargin
+    }
     /// Room for the widest panel, its shoulders and its shadow.
     /// 680, not the 560 of 16f: the rich answer popup is 580 wide (16m-1) and
     /// the result document's shape is 621; the canvas must hold them with
