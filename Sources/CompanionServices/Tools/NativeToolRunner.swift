@@ -543,13 +543,12 @@ package struct NativeToolRunner: Sendable {
             return ToolResult(ok: false, output: "Invalid URL")
         }
 
-        // Validate endpoint policy
-        guard EndpointPolicy.isAcceptable(url) else {
+        guard PageFetchPolicy.isAcceptable(url) else {
             return ToolResult(ok: false, output: "URL not acceptable by security policy")
         }
 
         let request = URLRequest(url: url, timeoutInterval: 30)
-        let session = NoStoreSession.shared
+        let session = PageFetchSession.shared
 
         do {
             let (bytes, response) = try await session.bytes(for: request)

