@@ -41,7 +41,9 @@ package enum MemoryTool {
         guard flat.count <= maxFact else {
             return .failure(.invalidArgs("fact is longer than \(maxFact) characters; shorten it"))
         }
-        guard !TurnRedaction.holdsStrongLabel(flat), TurnRedaction.redact(flat) == flat else {
+        // A reference is a secret the owner wrote: its value never leaves memory.
+        guard !TurnRedaction.holdsStrongLabel(flat), TurnRedaction.redact(flat) == flat,
+              !SecretVault.holdsReference(flat) else {
             return .failure(ContractError(
                 code: "refused", message: "that looks like a secret; it was not saved"))
         }

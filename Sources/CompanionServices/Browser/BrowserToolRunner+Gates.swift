@@ -140,7 +140,10 @@ extension BrowserToolRunner {
             guard let typed = arguments[key] as? String else {
                 return fail(tool, BridgeCode.invalidArgs, "missing \(key)")
             }
-            text = typed
+            guard let opened = SecretKeeper.shared.open(typed) else {
+                return fail(tool, "protected_value", "that protected value is no longer available")
+            }
+            text = opened
         }
         guard let (page, element) = cachedPage(tab, holding: id) else {
             return staleHere(tool, reason: "host_cache_miss")

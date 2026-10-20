@@ -342,6 +342,9 @@ package enum ChatPrompt: Sendable {
                 + "why in one sentence. After typing, check with read_focused "
                 + "before saying it is written. Ask for confirmation only when "
                 + "the app requires it (Return in a terminal). "
+                + "[[ref:N]] stands for a value the user wrote that you "
+                + "cannot see; to type it, pass the reference exactly as it "
+                + "is to type_text. "
         case .es:
             return "También puedes escribir en el campo enfocado de la app "
                 + "que está delante (type_text), pulsar una tecla ahí "
@@ -352,6 +355,9 @@ package enum ChatPrompt: Sendable {
                 + "escribir, verifica con read_focused antes de decir que "
                 + "quedó escrito. Pide confirmación solo cuando la app lo "
                 + "exige (Return en una terminal). "
+                + "[[ref:N]] es un valor que el usuario escribió y que tú "
+                + "no ves; para escribirlo, pasa la referencia tal cual a "
+                + "type_text. "
         }
     }
 
