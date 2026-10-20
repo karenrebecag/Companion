@@ -22,7 +22,9 @@ extension HandsAct {
         text: String, target: FocusedField, count: Int, route: InjectionRoute,
         baseline: String?, before: Int?
     ) async -> ParentToolOutcome {
-        guard let baseline, let before else { return unverified(count: count, route: route, before: before) }
+        guard let baseline, let before else {
+            return unverified(count: count, route: route, before: before, into: target.place)
+        }
         var seen = readBack(text: text, baseline: baseline, before: before)
         if seen != .landed {
             do {
@@ -33,8 +35,8 @@ extension HandsAct {
             seen = readBack(text: text, baseline: baseline, before: before)
         }
         switch seen {
-        case .landed: return verifiedOutcome(count: count, route: route, before: before)
-        case .unknown: return unverified(count: count, route: route, before: before)
+        case .landed: return verifiedOutcome(count: count, route: route, before: before, into: target.place)
+        case .unknown: return unverified(count: count, route: route, before: before, into: target.place)
         case .unchanged: break
         }
         // A paste route that left the field untouched would only fail again.
@@ -52,8 +54,8 @@ extension HandsAct {
             return fail("not_landed", Self.notLanded)
         case .injected(_, let pasteRoute):
             switch readBack(text: text, baseline: baseline, before: before) {
-            case .landed: return verifiedOutcome(count: count, route: pasteRoute, before: before)
-            case .unknown: return unverified(count: count, route: pasteRoute, before: before)
+            case .landed: return verifiedOutcome(count: count, route: pasteRoute, before: before, into: target.place)
+            case .unknown: return unverified(count: count, route: pasteRoute, before: before, into: target.place)
             case .unchanged: return fail("not_landed", Self.notLanded)
             }
         }
@@ -68,17 +70,27 @@ extension HandsAct {
         return value == baseline ? .unchanged : .unknown
     }
 
-    private func unverified(count: Int, route: InjectionRoute, before: Int?) -> ParentToolOutcome {
+    /// The read-back proves the text is in the focused field, not that the
+    /// field is the one the request meant; naming the object lets the model
+    /// check that (computah: verify against the intended object).
+    private func typed(_ count: Int, into place: String?) -> String {
+        guard let place else { return "typed \(count) chars" }
+        return "typed \(count) chars into the \(place) of \(hands.appName(pid))"
+    }
+
+    private func unverified(count: Int, route: InjectionRoute, before: Int?, into place: String?) -> ParentToolOutcome {
         Log.app("hands: type_text typed chars=\(count) via=\(route.rawValue) pid=\(pid) verified=false")
         return ParentToolOutcome(
-            ok: true, output: "typed \(count) chars" + TypedProof.unverifiedNote,
+            ok: true, output: typed(count, into: place) + TypedProof.unverifiedNote,
             tool: tool.rawValue, fieldPID: pid, typedBefore: before)
     }
 
-    private func verifiedOutcome(count: Int, route: InjectionRoute, before: Int) -> ParentToolOutcome {
+    private func verifiedOutcome(
+        count: Int, route: InjectionRoute, before: Int, into place: String?
+    ) -> ParentToolOutcome {
         Log.app("hands: type_text typed chars=\(count) via=\(route.rawValue) pid=\(pid) verified=true")
         return ParentToolOutcome(
-            ok: true, output: "typed \(count) chars" + TypedProof.verifiedNote,
+            ok: true, output: typed(count, into: place) + TypedProof.verifiedNote,
             tool: tool.rawValue, verified: true, fieldPID: pid, typedBefore: before)
     }
 }

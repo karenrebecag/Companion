@@ -206,3 +206,19 @@ private func proofHandsRunner(
         expect(out.output.hasPrefix(prefix), "pegado \(result): \(prefix) \(out.output)")
     }
 }
+
+/// QA 2026-10-19 (audit CN-001): a "New Folder" dialog held the focus, the
+/// note stayed empty and the reply said "written". The read-back matched the
+/// dialog's field; the outcome now names that object so it can be checked
+/// against the one the request meant.
+@Test @MainActor func aTypeIntoADialogNamesTheDialog() async {
+    let place = FieldPlace.describe(role: "AXWindow", subrole: "AXDialog", title: "Nueva carpeta")
+    expectEq(place, #"dialog "Nueva carpeta""#, "un diálogo se nombra como diálogo")
+    expectEq(FieldPlace.describe(role: "AXSheet", subrole: "", title: ""), "untitled sheet",
+             "una hoja sin título sigue siendo una hoja")
+    expect(FieldPlace.describe(role: "AXGroup", subrole: "", title: "x") == nil, "un grupo no es lugar")
+    let hands = FakeHands(field: FocusedField(app: "Notes", pid: 7, place: place), text: "")
+    let out = await proofHandsRunner(hands).execute(name: "type_text", argumentsJSON: #"{"text":"hola"}"#)
+    expect(out.output.contains(#"into the dialog "Nueva carpeta""#),
+           "la salida dice dónde cayó el texto: \(out.output)")
+}

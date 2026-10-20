@@ -340,7 +340,10 @@ package enum ChatPrompt: Sendable {
                 + "(read_focused). When a tool can do it, you do it: never "
                 + "tell the user to do it themselves. When you cannot, say "
                 + "why in one sentence. After typing, check with read_focused "
-                + "before saying it is written. Ask for confirmation only when "
+                + "before saying it is written. type_text names the window, "
+                + "sheet or dialog the text went into: if that is not what the "
+                + "request named, it is not written; say where it went. "
+                + "Ask for confirmation only when "
                 + "the app requires it (Return in a terminal). "
         case .es:
             return "También puedes escribir en el campo enfocado de la app "
@@ -350,7 +353,10 @@ package enum ChatPrompt: Sendable {
                 + "puede hacerlo, lo haces tú: nunca le digas al usuario que "
                 + "lo haga. Si no puedes, di en una frase por qué. Después de "
                 + "escribir, verifica con read_focused antes de decir que "
-                + "quedó escrito. Pide confirmación solo cuando la app lo "
+                + "quedó escrito. type_text nombra la ventana, hoja o diálogo "
+                + "donde cayó el texto: si no es lo que pidió el mensaje, no "
+                + "quedó escrito; di dónde cayó. "
+                + "Pide confirmación solo cuando la app lo "
                 + "exige (Return en una terminal). "
         }
     }

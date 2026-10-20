@@ -13,11 +13,34 @@ package struct FocusedField: Sendable, Equatable {
     package let app: String
     package let pid: Int32
     package let secure: Bool
+    /// The native object holding the field, as the model will read it
+    /// (`dialog "New Folder"`). A read-back proves the text is in the field;
+    /// only this says whether that field is the object the user meant.
+    package let place: String?
 
-    package init(app: String, pid: Int32, secure: Bool = false) {
+    package init(app: String, pid: Int32, secure: Bool = false, place: String? = nil) {
         self.app = app
         self.pid = pid
         self.secure = secure
+        self.place = place
+    }
+}
+
+/// How a field's container reads to the model. A sheet or a dialog is named
+/// as such: it is the object that most often takes the focus unasked (a
+/// "New Folder" left open), and "window" would hide that.
+package enum FieldPlace {
+    package static func describe(role: String, subrole: String, title: String) -> String? {
+        let kind: String
+        switch (role, subrole) {
+        case ("AXSheet", _): kind = "sheet"
+        case ("AXWindow", "AXDialog"), ("AXWindow", "AXSystemDialog"), ("AXWindow", "AXFloatingWindow"):
+            kind = "dialog"
+        case ("AXWindow", _): kind = "window"
+        default: return nil
+        }
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? "untitled \(kind)" : "\(kind) \"\(name.prefix(80))\""
     }
 }
 
