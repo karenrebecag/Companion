@@ -27,6 +27,13 @@ package enum IslandGrid {
     package static var nestedRadius: CGFloat {
         innerRadius(outer: NotchShape.openRadius, padding: IslandChrome.shellMargin)
     }
+
+    /// The hardware notch hides whatever is drawn under it, so the band's
+    /// pieces live in the wing beside it: half of what the shape is wider
+    /// than the notch, less the shell's margin.
+    package static func wing(shape: CGFloat, notch: CGFloat, margin: CGFloat) -> CGFloat {
+        max(Space.none, (shape - notch) / 2 - margin)
+    }
 }
 
 /// One row on the island's grid.

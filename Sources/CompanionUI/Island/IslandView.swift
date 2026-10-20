@@ -326,8 +326,7 @@ package struct IslandView: View {
             .modifier(contentSlot(.field))
             inner()
         }
-        .padding(.horizontal, state.size == .docCard || state.size == .chat
-                 ? IslandChrome.docShellMargin : IslandChrome.shellMargin)
+        .padding(.horizontal, IslandChrome.margin(for: state.size))
         .padding(.bottom, IslandChrome.shellBottom)
     }
 
