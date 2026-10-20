@@ -17,12 +17,16 @@ package struct FocusedField: Sendable, Equatable {
     /// (`dialog "New Folder"`). A read-back proves the text is in the field;
     /// only this says whether that field is the object the user meant.
     package let place: String?
+    /// The field sits in a sheet or dialog: the object that takes the focus
+    /// unasked, so typing there needs the model to have aimed at it.
+    package let modal: Bool
 
-    package init(app: String, pid: Int32, secure: Bool = false, place: String? = nil) {
+    package init(app: String, pid: Int32, secure: Bool = false, place: String? = nil, modal: Bool = false) {
         self.app = app
         self.pid = pid
         self.secure = secure
         self.place = place
+        self.modal = modal
     }
 }
 
@@ -30,12 +34,16 @@ package struct FocusedField: Sendable, Equatable {
 /// as such: it is the object that most often takes the focus unasked (a
 /// "New Folder" left open), and "window" would hide that.
 package enum FieldPlace {
+    package static func isModal(role: String, subrole: String) -> Bool {
+        role == "AXSheet" || (role == "AXWindow"
+            && ["AXDialog", "AXSystemDialog", "AXFloatingWindow"].contains(subrole))
+    }
+
     package static func describe(role: String, subrole: String, title: String) -> String? {
         let kind: String
         switch (role, subrole) {
         case ("AXSheet", _): kind = "sheet"
-        case ("AXWindow", "AXDialog"), ("AXWindow", "AXSystemDialog"), ("AXWindow", "AXFloatingWindow"):
-            kind = "dialog"
+        case ("AXWindow", _) where isModal(role: role, subrole: subrole): kind = "dialog"
         case ("AXWindow", _): kind = "window"
         default: return nil
         }

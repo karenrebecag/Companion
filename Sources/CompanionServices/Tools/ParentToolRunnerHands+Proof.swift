@@ -75,7 +75,7 @@ extension HandsAct {
     /// check that (computah: verify against the intended object).
     private func typed(_ count: Int, into place: String?) -> String {
         guard let place else { return "typed \(count) chars" }
-        return "typed \(count) chars into the \(place) of \(hands.appName(pid))"
+        return "typed \(count) chars into the \(place)"
     }
 
     private func unverified(count: Int, route: InjectionRoute, before: Int?, into place: String?) -> ParentToolOutcome {

@@ -19,21 +19,22 @@ extension AXTextInjector: FocusedReading, KeyPressing, WindowRaising {
         guard Self.editableRoles.contains(role) || isSettable(kAXValueAttribute, element) else {
             return nil
         }
-        return FocusedField(app: name, pid: pid, place: Self.place(of: element))
+        let place = Self.place(of: element)
+        return FocusedField(app: name, pid: pid, place: place?.text, modal: place?.modal ?? false)
     }
 
     /// The nearest sheet or window above the field. Twelve hops is the same
     /// ceiling the scroll-area walk uses; a field deeper than that reports no
     /// place rather than a wrong one.
-    static func place(of element: AXUIElement) -> String? {
+    static func place(of element: AXUIElement) -> (text: String, modal: Bool)? {
         var current: AXUIElement? = element
         for _ in 0..<12 {
             guard let this = current else { return nil }
+            let role = AXRead.string(kAXRoleAttribute, of: this)
+            let subrole = AXRead.string(kAXSubroleAttribute, of: this)
             if let place = FieldPlace.describe(
-                role: AXRead.string(kAXRoleAttribute, of: this),
-                subrole: AXRead.string(kAXSubroleAttribute, of: this),
-                title: AXRead.string(kAXTitleAttribute, of: this)) {
-                return place
+                role: role, subrole: subrole, title: AXRead.string(kAXTitleAttribute, of: this)) {
+                return (place, FieldPlace.isModal(role: role, subrole: subrole))
             }
             current = AXRead.element(kAXParentAttribute, of: this)
         }

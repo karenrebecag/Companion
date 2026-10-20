@@ -17,7 +17,10 @@ extension ParentTool {
                     + "for that.",
                 properties: [ToolProperty(
                     name: "text", type: "string", description: "the exact text to type",
-                    minLength: 1, maxBytes: ToolProperty.maxTextBytes)],
+                    minLength: 1, maxBytes: ToolProperty.maxTextBytes),
+                    ToolProperty(name: "in_dialog", type: "boolean",
+                        description: "true only when the request is about a field of a dialog or sheet "
+                            + "(a Save or rename dialog); without it, a dialog holding the focus is refused")],
                 required: ["text"])
         case (.typeText, .es):
             return ToolSpec(
@@ -27,7 +30,10 @@ extension ParentTool {
                     + "press_key.",
                 properties: [ToolProperty(
                     name: "text", type: "string", description: "el texto exacto a escribir",
-                    minLength: 1, maxBytes: ToolProperty.maxTextBytes)],
+                    minLength: 1, maxBytes: ToolProperty.maxTextBytes),
+                    ToolProperty(name: "in_dialog", type: "boolean",
+                        description: "true solo si el pedido es sobre un campo de un diálogo u hoja "
+                            + "(Guardar, renombrar); sin él, un diálogo con el foco se rechaza")],
                 required: ["text"])
         case (.pressKey, .en):
             return ToolSpec(
